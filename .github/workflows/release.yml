@@ -1,35 +1,69 @@
 name: Release
 
-# Push a tag like v0.1.1 to build the Windows installer and publish it as a
-# GitHub release. Installed copies of Arete find it and update themselves.
+# Bump "version" in package.json and push to main: this workflow tags that
+# version, builds the Windows installer and publishes it as a GitHub release.
+# Installed copies of Arete find the release and update themselves.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: [package.json]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the version and whether it is already released
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag is already released; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.version.outputs.skip == 'false'
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - name: Check the tag matches package.json
-        if: startsWith(github.ref, 'refs/tags/v')
+
+      - if: steps.version.outputs.skip == 'false'
+        run: npm ci
+
+      - if: steps.version.outputs.skip == 'false'
+        run: npm test
+
+      - name: Tag the release
+        if: steps.version.outputs.skip == 'false'
         shell: bash
         run: |
-          version="v$(node -p "require('./package.json').version")"
-          if [ "$version" != "${GITHUB_REF_NAME}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match package.json version $version"
-            exit 1
+          tag="${{ steps.version.outputs.tag }}"
+          # A failed earlier run may have created the tag already; reuse it.
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            git tag "$tag"
+            git push origin "$tag"
           fi
-      - run: npm run release:win
+
+      - name: Build and publish
+        if: steps.version.outputs.skip == 'false'
+        run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

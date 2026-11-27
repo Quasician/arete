@@ -35,9 +35,8 @@ npm run dist:win   # build a local Windows installer (on Windows)
 
 ### Releasing
 
-1. Bump `version` in `package.json`.
-2. Commit, then push a matching tag, e.g. `git tag v0.1.1 && git push origin v0.1.1`.
-3. The **Release** workflow builds the installer on Windows and publishes the release.
+1. Bump `version` in `package.json` and push to `main`.
+2. The **Release** workflow tags that version, builds the installer on Windows and publishes the release. A version that's already released is skipped, and a failed run can be re-run from the Actions tab.
 
 ## Stack
 
