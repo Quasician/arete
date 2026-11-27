@@ -72,6 +72,10 @@ function toMeal(r: MealRecord): Meal {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+function localClock(d: Date): string {
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':')
+}
+
 function assertDate(date: string): void {
   if (!DATE_RE.test(date)) throw new Error(`Invalid date: ${date}`)
 }
@@ -198,7 +202,8 @@ export class Repo {
       .insert(weights)
       .values({
         date: input.date,
-        measuredAt: new Date().toISOString(),
+        // The chosen day at the current local time, in the same form as Withings readings.
+        measuredAt: `${input.date}T${localClock(new Date())}`,
         kg,
         fatPct: optionalNumber(input.fatPct, 1, 75, 'body fat'),
         source: 'manual',

@@ -1,5 +1,5 @@
 // Pure functions with no Electron or DOM dependencies, so they can be tested directly.
-import type { Activity, ActivityKind, DayView, TrainingProgram, WeekView, WeeklyPlan } from './types.ts'
+import type { Activity, ActivityKind, DayView, TrainingProgram, WeekView, WeeklyPlan, WeightEntry } from './types.ts'
 
 const DAY_MS = 86_400_000
 
@@ -107,6 +107,81 @@ export function dailyMeans(points: Point[]): Point[] {
   return [...byDate.entries()]
     .map(([date, values]) => ({ date, value: values.reduce((s, v) => s + v, 0) / values.length }))
     .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/**
+ * Local hour (0-23) of a weigh-in. Withings readings are stored as local
+ * "YYYY-MM-DDTHH:MM:SS"; older manual entries were stored as UTC ISO strings.
+ */
+export function readingHour(measuredAt: string): number {
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(measuredAt)) return new Date(measuredAt).getHours()
+  const m = measuredAt.match(/T(\d{2}):/)
+  return m ? Number(m[1]) : 0
+}
+
+/** Readings before noon count as morning weigh-ins. */
+export const MORNING_BEFORE_HOUR = 12
+
+/** Days with both a morning and a later reading needed before evening-only days are used. */
+export const MIN_GAP_DAYS = 3
+
+export interface MorningPoint extends Point {
+  /** True when the morning weight was estimated from that evening's reading. */
+  estimated: boolean
+}
+
+export interface MorningTrend {
+  /** One morning weight per day: measured, or estimated from the evening. */
+  daily: MorningPoint[]
+  /** Trailing average of the daily morning weights. */
+  trend: Point[]
+  /** Typical evening minus morning weight (kg), or null until there are enough days with both. */
+  gapKg: number | null
+  /** Days that had both a morning and a later reading. */
+  pairedDays: number
+}
+
+function median(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+/**
+ * Builds the weight trend from morning weigh-ins, the most consistent reading
+ * of the day. On days with no morning reading, the last reading of the day is
+ * used minus this person's own typical morning-to-evening gain, learned from
+ * days that have both. Raw evening weights never go into the trend directly.
+ */
+export function morningTrend(entries: WeightEntry[], windowDays: number): MorningTrend {
+  const byDate = new Map<string, WeightEntry[]>()
+  for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e])
+
+  const mornings = new Map<string, number>()
+  const laters = new Map<string, number>()
+  for (const [date, list] of byDate) {
+    const sorted = [...list].sort((a, b) => readingHour(a.measuredAt) - readingHour(b.measuredAt) || a.measuredAt.localeCompare(b.measuredAt))
+    const morning = sorted.find((e) => readingHour(e.measuredAt) < MORNING_BEFORE_HOUR)
+    const later = [...sorted].reverse().find((e) => readingHour(e.measuredAt) >= MORNING_BEFORE_HOUR)
+    if (morning) mornings.set(date, morning.kg)
+    if (later) laters.set(date, later.kg)
+  }
+
+  // Learn the typical gap from the most recent 60 days that have both readings.
+  const gaps = [...mornings.keys()]
+    .filter((d) => laters.has(d))
+    .sort()
+    .slice(-60)
+    .map((d) => laters.get(d)! - mornings.get(d)!)
+  const gapKg = gaps.length >= MIN_GAP_DAYS ? median(gaps) : null
+
+  const daily: MorningPoint[] = []
+  for (const date of [...byDate.keys()].sort()) {
+    const m = mornings.get(date)
+    if (m != null) daily.push({ date, value: m, estimated: false })
+    else if (gapKg != null && laters.has(date)) daily.push({ date, value: laters.get(date)! - gapKg, estimated: true })
+  }
+  return { daily, trend: rollingAverage(daily, windowDays), gapKg, pairedDays: gaps.length }
 }
 
 export const KG_PER_LB = 0.45359237

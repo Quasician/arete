@@ -114,3 +114,53 @@ test('formatPace formats rowing splits without rounding to :60', () => {
   assert.equal(formatPace(119.96), '2:00.0 /500m')
   assert.equal(formatPace(undefined), '')
 })
+
+import { morningTrend, readingHour } from '../src/shared/logic.ts'
+import type { WeightEntry } from '../src/shared/types.ts'
+
+let nextId = 1
+function w(date: string, time: string, kg: number): WeightEntry {
+  return { id: nextId++, date, measuredAt: `${date}T${time}`, kg, fatPct: null, source: 'withings' }
+}
+
+test('readingHour reads local Withings times and UTC timestamps', () => {
+  assert.equal(readingHour('2026-11-25T07:02:11'), 7)
+  assert.equal(readingHour('2026-11-25T22:40:00'), 22)
+  assert.equal(readingHour(new Date(2026, 10, 25, 6, 30).toISOString()), 6)
+})
+
+test('morningTrend uses morning weigh-ins and ignores raw evening ones', () => {
+  const t = morningTrend(
+    [w('2026-11-01', '07:00:00', 80), w('2026-11-01', '22:00:00', 81.2), w('2026-11-02', '06:45:00', 79.8)],
+    7
+  )
+  assert.deepEqual(
+    t.daily.map((p) => [p.date, p.value, p.estimated]),
+    [
+      ['2026-11-01', 80, false],
+      ['2026-11-02', 79.8, false]
+    ]
+  )
+  assert.equal(t.gapKg, null) // only one day with both readings so far
+})
+
+test('morningTrend learns the evening gain and estimates mornings from evening-only days', () => {
+  const entries = [
+    w('2026-11-01', '07:00:00', 80.0), w('2026-11-01', '22:00:00', 81.0), // +1.0
+    w('2026-11-02', '07:00:00', 80.2), w('2026-11-02', '21:30:00', 81.4), // +1.2
+    w('2026-11-03', '07:10:00', 80.0), w('2026-11-03', '22:15:00', 80.8), // +0.8
+    w('2026-11-04', '22:00:00', 81.1) // evening only
+  ]
+  const t = morningTrend(entries, 7)
+  assert.equal(Math.round(t.gapKg! * 100) / 100, 1.0)
+  assert.equal(t.pairedDays, 3)
+  const last = t.daily.at(-1)!
+  assert.equal(last.date, '2026-11-04')
+  assert.equal(last.estimated, true)
+  assert.equal(Math.round(last.value * 100) / 100, 80.1)
+})
+
+test('morningTrend takes the first morning reading when there are several', () => {
+  const t = morningTrend([w('2026-11-05', '09:30:00', 80.6), w('2026-11-05', '06:50:00', 80.1)], 7)
+  assert.equal(t.daily[0].value, 80.1)
+})

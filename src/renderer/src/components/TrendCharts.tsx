@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
-import { formatPace } from '@shared/logic'
+import { MORNING_BEFORE_HOUR, formatPace, readingHour } from '@shared/logic'
 import type { Activity, Units, WeightEntry } from '@shared/types'
-import type { Point } from '@shared/logic'
+import type { MorningPoint, Point } from '@shared/logic'
 import { weightFromKg } from '../format'
 import { Chart, baseOption, chartTheme } from './Chart'
 
@@ -9,12 +9,14 @@ export const TREND_DAYS = 7
 
 export function WeightChart({
   entries,
+  daily,
   trend,
   units,
   height = 300,
   compact = false
 }: {
   entries: WeightEntry[]
+  daily: MorningPoint[]
   trend: Point[]
   units: Units
   height?: number
@@ -35,11 +37,27 @@ export function WeightChart({
       },
       series: [
         {
-          name: 'Weigh-ins',
+          name: 'Morning',
           type: 'scatter',
-          data: entries.map((e) => [e.date, conv(e.kg)]),
+          data: daily.filter((p) => !p.estimated).map((p) => [p.date, conv(p.value)]),
           symbolSize: compact ? 4 : 6,
-          itemStyle: { color: chartTheme.muted }
+          itemStyle: { color: chartTheme.primary, opacity: 0.75 }
+        },
+        {
+          name: 'Evening',
+          type: 'scatter',
+          data: entries
+            .filter((e) => readingHour(e.measuredAt) >= MORNING_BEFORE_HOUR)
+            .map((e) => [e.date, conv(e.kg)]),
+          symbolSize: compact ? 3 : 5,
+          itemStyle: { color: chartTheme.text, opacity: 0.25 }
+        },
+        {
+          name: 'Morning, estimated',
+          type: 'scatter',
+          data: daily.filter((p) => p.estimated).map((p) => [p.date, conv(p.value)]),
+          symbolSize: compact ? 4 : 6,
+          itemStyle: { color: 'transparent', borderColor: chartTheme.primary, borderWidth: 1.5 }
         },
         {
           name: `${TREND_DAYS}-day trend`,
@@ -52,7 +70,7 @@ export function WeightChart({
         }
       ]
     }
-  }, [entries, trend, units, compact])
+  }, [entries, daily, trend, units, compact])
   return <Chart option={option} height={height} />
 }
 

@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { addDays, dailyMeans, rollingAverage, toLocalDate } from '@shared/logic'
+import { MIN_GAP_DAYS, addDays, morningTrend, readingHour, toLocalDate } from '@shared/logic'
 import type { ImportResult, Units, WeightEntry } from '@shared/types'
 import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { formatWeight, longDate, weightFromKg, weightToKg } from '../format'
@@ -22,12 +22,14 @@ export function WeightPage() {
   const list = useQuery({ queryKey: keys.weights(from, today), queryFn: () => api.listWeights(from, today) })
   const entries = list.data ?? []
 
-  const trend = useMemo(
-    () => rollingAverage(dailyMeans(entries.map((e) => ({ date: e.date, value: e.kg }))), TREND_DAYS),
-    [entries]
-  )
-  const latest = trend.at(-1)
-  const weekAgo = trend.findLast((p) => p.date <= addDays(today, -7))
+  // Trend from the whole history, so the morning/evening gap and the
+  // average at the start of the shown range use all the data.
+  const all = useQuery({ queryKey: keys.weights('1900-01-01', today), queryFn: () => api.listWeights('1900-01-01', today) })
+  const fullTrend = useMemo(() => morningTrend(all.data ?? [], TREND_DAYS), [all.data])
+  const trend = fullTrend.trend.filter((p) => p.date >= from)
+  const daily = fullTrend.daily.filter((p) => p.date >= from)
+  const latest = fullTrend.trend.at(-1)
+  const weekAgo = fullTrend.trend.findLast((p) => p.date <= addDays(today, -7))
   const change = latest && weekAgo ? latest.value - weekAgo.value : null
   const wide = useWide()
 
@@ -37,7 +39,8 @@ export function WeightPage() {
         <div>
           <h1>Weight</h1>
           <p className="subtle">
-            The line is a {TREND_DAYS}-day average, so daily swings from water and salt don't hide the real trend.
+            The line is a {TREND_DAYS}-day average of morning weigh-ins, the most consistent reading of the day. Days
+            with only an evening reading use it minus your usual evening gain.
           </p>
         </div>
         <div className="segmented">
@@ -57,11 +60,23 @@ export function WeightPage() {
               label="Change over 7 days"
               value={change == null ? '–' : `${change > 0 ? '+' : ''}${weightFromKg(change, units).toFixed(1)} ${units}`}
             />
-            <Stat label={`Weigh-ins (${range.label.toLowerCase()})`} value={String(entries.length)} />
+            <Stat
+              label="Usual evening gain"
+              value={
+                fullTrend.gapKg == null
+                  ? '–'
+                  : `${fullTrend.gapKg >= 0 ? '+' : ''}${weightFromKg(fullTrend.gapKg, units).toFixed(1)} ${units}`
+              }
+              hint={
+                fullTrend.gapKg == null
+                  ? `Learned after ${MIN_GAP_DAYS} days with both a morning and an evening weigh-in`
+                  : `Median over ${fullTrend.pairedDays} days with both readings`
+              }
+            />
           </div>
           {entries.length > 0 && (
             <section className="card">
-              <WeightChart entries={entries} trend={trend} units={units} height={wide ? 620 : 300} />
+              <WeightChart entries={entries} daily={daily} trend={trend} units={units} height={wide ? 620 : 300} />
             </section>
           )}
         </div>
@@ -69,10 +84,10 @@ export function WeightPage() {
         <div className="col">
           <WithingsImportCard />
 
-          <section className="card">
-            <h2>Add a weigh-in by hand</h2>
+          <details className="card">
+            <summary>Add a weigh-in by hand</summary>
             <AddWeightForm units={units} today={today} />
-          </section>
+          </details>
 
           <section className="card">
             <h2>Recent weigh-ins</h2>
@@ -86,13 +101,23 @@ export function WeightPage() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="stat">
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
+      {hint && <div className="stat-hint">{hint}</div>}
     </div>
   )
+}
+
+function formatClock(measuredAt: string): string {
+  const hour = readingHour(measuredAt)
+  const m = measuredAt.match(/T\d{2}:(\d{2})/)
+  const minutes = /(Z|[+-]\d{2}:\d{2})$/.test(measuredAt)
+    ? String(new Date(measuredAt).getMinutes()).padStart(2, '0')
+    : (m?.[1] ?? '00')
+  return `${hour % 12 || 12}:${minutes} ${hour < 12 ? 'AM' : 'PM'}`
 }
 
 function WithingsImportCard() {
@@ -196,6 +221,7 @@ function WeightList({ entries, units }: { entries: WeightEntry[]; units: Units }
         {entries.map((e) => (
           <tr key={e.id}>
             <td>{longDate(e.date)}</td>
+            <td className="subtle">{formatClock(e.measuredAt)}</td>
             <td>{formatWeight(e.kg, units)}</td>
             <td>{e.fatPct != null ? `${e.fatPct}% fat` : ''}</td>
             <td className="subtle small">{e.source === 'withings' ? 'Withings' : 'Logged'}</td>

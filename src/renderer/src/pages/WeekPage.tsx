@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { addDays, dailyMeans, formatDuration, rollingAverage, toLocalDate, weekStartOf } from '@shared/logic'
+import { addDays, formatDuration, morningTrend, toLocalDate, weekStartOf } from '@shared/logic'
 import { ACTIVITY_KINDS, KIND_LABELS, type ActivityKind, type DayView } from '@shared/types'
 import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { useUi } from '../store'
@@ -93,10 +93,7 @@ function WeekRail({ weekStart, days }: { weekStart: string; days: DayView[] }) {
   const rowedM = activities.filter((a) => a.kind === 'row').reduce((s, a) => s + (a.distanceM ?? 0), 0)
   const activeDays = days.filter((d) => d.activities.length > 0).length
 
-  const trend = useMemo(
-    () => rollingAverage(dailyMeans((weights ?? []).map((e) => ({ date: e.date, value: e.kg }))), TREND_DAYS),
-    [weights]
-  )
+  const { trend, daily } = useMemo(() => morningTrend(weights ?? [], TREND_DAYS), [weights])
   const shownTrend = trend.filter((p) => p.date >= addDays(today, -29))
   const latest = trend.at(-1)
   const weekAgo = trend.findLast((p) => p.date <= addDays(today, -7))
@@ -127,6 +124,7 @@ function WeekRail({ weekStart, days }: { weekStart: string; days: DayView[] }) {
         {shownTrend.length > 1 && (
           <WeightChart
             entries={(weights ?? []).filter((w) => w.date >= addDays(today, -29))}
+            daily={daily.filter((p) => p.date >= addDays(today, -29))}
             trend={shownTrend}
             units={units}
             height={200}

@@ -705,3 +705,19 @@ label {
     font-size: 26px;
   }
 }
+
+details.card > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--subtle);
+}
+details.card[open] > summary {
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.stat-hint {
+  font-size: 11px;
+  color: var(--subtle);
+  opacity: 0.75;
+  margin-top: 2px;
+}
