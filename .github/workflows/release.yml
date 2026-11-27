@@ -64,8 +64,29 @@ jobs:
             git push origin "$tag"
           fi
 
-      - name: Build and publish
+      - name: Create a draft release to upload into
+        if: steps.version.outputs.skip == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            gh release create "$tag" --draft --title "Arete ${tag#v}" --notes "Arete ${tag#v}"
+          fi
+
+      - name: Build and upload
         if: steps.version.outputs.skip == 'false'
         run: npm run release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the release
+        if: steps.version.outputs.skip == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          gh release view "$tag" --json assets --jq '.assets[].name' | grep -qx latest.yml
+          gh release edit "$tag" --draft=false --latest
