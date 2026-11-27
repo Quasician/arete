@@ -8,6 +8,7 @@ import { ActivityPage } from './pages/ActivityPage'
 import { FoodPage } from './pages/FoodPage'
 import { WeightPage } from './pages/WeightPage'
 import { SettingsPage } from './pages/SettingsPage'
+import icon from './assets/icon.png'
 
 const NAV: { page: Page; label: string }[] = [
   { page: 'week', label: 'Week' },
@@ -25,9 +26,7 @@ export function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            ✦
-          </span>
+          <img className="brand-mark" src={icon} alt="" />
           <span>Arete</span>
         </div>
         <nav>

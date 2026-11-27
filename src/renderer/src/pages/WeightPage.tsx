@@ -4,10 +4,10 @@ import { addDays, dailyMeans, rollingAverage, toLocalDate } from '@shared/logic'
 import type { Units, WeightEntry } from '@shared/types'
 import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { formatWeight, longDate, weightFromKg, weightToKg } from '../format'
-import { Chart, baseOption, chartTheme } from '../components/Chart'
+import { TREND_DAYS, WeightChart } from '../components/TrendCharts'
+import { useWide } from '../useWide'
 
 const RANGE_DAYS = 120
-const TREND_DAYS = 7
 
 export function WeightPage() {
   const today = toLocalDate(new Date())
@@ -23,6 +23,7 @@ export function WeightPage() {
   const latest = trend.at(-1)
   const weekAgo = trend.findLast((p) => p.date <= addDays(today, -7))
   const change = latest && weekAgo ? latest.value - weekAgo.value : null
+  const wide = useWide()
 
   return (
     <div className="page">
@@ -35,33 +36,38 @@ export function WeightPage() {
         </div>
       </header>
 
-      <div className="stats">
-        <Stat label="Trend weight" value={latest ? formatWeight(latest.value, units) : '–'} />
-        <Stat
-          label="Change over 7 days"
-          value={change == null ? '–' : `${change > 0 ? '+' : ''}${weightFromKg(change, units).toFixed(1)} ${units}`}
-        />
-        <Stat label="Weigh-ins" value={String(entries.length)} />
+      <div className="weight-layout">
+        <div className="col">
+          <div className="stats">
+            <Stat label="Trend weight" value={latest ? formatWeight(latest.value, units) : '–'} />
+            <Stat
+              label="Change over 7 days"
+              value={change == null ? '–' : `${change > 0 ? '+' : ''}${weightFromKg(change, units).toFixed(1)} ${units}`}
+            />
+            <Stat label="Weigh-ins" value={String(entries.length)} />
+          </div>
+          {entries.length > 0 && (
+            <section className="card">
+              <WeightChart entries={entries} trend={trend} units={units} height={wide ? 620 : 300} />
+            </section>
+          )}
+        </div>
+
+        <div className="col">
+          <section className="card">
+            <h2>Add a weigh-in</h2>
+            <p className="subtle small">Withings readings will import automatically in a later version.</p>
+            <AddWeightForm units={units} today={today} />
+          </section>
+
+          <section className="card">
+            <h2>Recent weigh-ins</h2>
+            {list.error && <p className="error">{errorText(list.error)}</p>}
+            {entries.length === 0 && !list.isLoading && <p className="subtle">No weigh-ins yet.</p>}
+            <WeightList entries={[...entries].reverse().slice(0, wide ? 20 : 30)} units={units} />
+          </section>
+        </div>
       </div>
-
-      {entries.length > 0 && (
-        <section className="card">
-          <WeightChart entries={entries} trend={trend} units={units} />
-        </section>
-      )}
-
-      <section className="card">
-        <h2>Add a weigh-in</h2>
-        <p className="subtle small">Withings readings will import automatically in a later version.</p>
-        <AddWeightForm units={units} today={today} />
-      </section>
-
-      <section className="card">
-        <h2>Recent weigh-ins</h2>
-        {list.error && <p className="error">{errorText(list.error)}</p>}
-        {entries.length === 0 && !list.isLoading && <p className="subtle">No weigh-ins yet.</p>}
-        <WeightList entries={[...entries].reverse().slice(0, 30)} units={units} />
-      </section>
     </div>
   )
 }
@@ -73,50 +79,6 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="stat-label">{label}</div>
     </div>
   )
-}
-
-function WeightChart({
-  entries,
-  trend,
-  units
-}: {
-  entries: WeightEntry[]
-  trend: { date: string; value: number }[]
-  units: Units
-}) {
-  const option = useMemo(() => {
-    const conv = (kg: number) => Number(weightFromKg(kg, units).toFixed(1))
-    return {
-      ...baseOption(),
-      legend: { top: 0, right: 0, textStyle: { color: chartTheme.text } },
-      xAxis: { type: 'time', axisLine: { lineStyle: { color: chartTheme.grid } } },
-      yAxis: {
-        type: 'value',
-        scale: true,
-        name: units,
-        splitLine: { lineStyle: { color: chartTheme.grid } }
-      },
-      series: [
-        {
-          name: 'Weigh-ins',
-          type: 'scatter',
-          data: entries.map((e) => [e.date, conv(e.kg)]),
-          symbolSize: 6,
-          itemStyle: { color: chartTheme.muted }
-        },
-        {
-          name: `${TREND_DAYS}-day trend`,
-          type: 'line',
-          data: trend.map((p) => [p.date, conv(p.value)]),
-          showSymbol: false,
-          smooth: true,
-          lineStyle: { color: chartTheme.accent, width: 3 },
-          itemStyle: { color: chartTheme.accent }
-        }
-      ]
-    }
-  }, [entries, trend, units])
-  return <Chart option={option} height={300} />
 }
 
 function AddWeightForm({ units, today }: { units: Units; today: string }) {

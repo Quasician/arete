@@ -5,6 +5,7 @@ import { Store } from './db.ts'
 import { Repo } from './repo.ts'
 import { Settings } from './settings.ts'
 import { registerIpc, runSync } from './ipc.ts'
+import { loadWindowState, trackWindowState } from './windowState.ts'
 
 const { autoUpdater } = electronUpdater
 
@@ -27,15 +28,21 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function createWindow(): BrowserWindow {
+  const stateFile = path.join(app.getPath('userData'), 'window-state.json')
+  const state = loadWindowState(stateFile)
   const win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: state.bounds?.width ?? 1600,
+    height: state.bounds?.height ?? 1000,
+    x: state.bounds?.x,
+    y: state.bounds?.y,
     minWidth: 900,
     minHeight: 600,
     title: 'Arete',
     backgroundColor: '#0b1020',
     show: false,
     autoHideMenuBar: true,
+    // In the installed app Windows takes the icon from Arete.exe.
+    ...(app.isPackaged ? {} : { icon: path.join(__dirname, '../../build/icon.png') }),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -43,7 +50,20 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false
     }
   })
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    if (state.fullScreen) win.setFullScreen(true)
+    else if (state.maximized) win.maximize()
+    win.show()
+  })
+  trackWindowState(win, stateFile)
+
+  // F11 toggles full screen, like Praxis on the wide monitor.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      win.setFullScreen(!win.isFullScreen())
+      event.preventDefault()
+    }
+  })
 
   // Links open in the default browser; the window never navigates away from Arete.
   win.webContents.setWindowOpenHandler(({ url }) => {

@@ -39,10 +39,16 @@ export function SettingsPage() {
           <p className="subtle">Everything here stays on this PC. Keys are encrypted with Windows’ own protection.</p>
         </div>
       </header>
-      <KeysCard settings={settings.data} />
-      <PlanCard plan={settings.data.plan} />
-      <ProgramCard program={settings.data.program} />
-      <UnitsCard settings={settings.data} />
+      <div className="two-col">
+        <div className="col">
+          <KeysCard settings={settings.data} />
+          <ProgramCard program={settings.data.program} />
+          <UnitsCard settings={settings.data} />
+        </div>
+        <div className="col">
+          <PlanCard plan={settings.data.plan} />
+        </div>
+      </div>
     </div>
   )
 }

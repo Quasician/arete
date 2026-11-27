@@ -1,11 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { addDays, formatPace, toLocalDate } from '@shared/logic'
+import { addDays, toLocalDate } from '@shared/logic'
 import { ACTIVITY_KINDS, KIND_LABELS, type Activity, type ActivityKind } from '@shared/types'
 import { api, errorText, keys, useInvalidate } from '../api'
 import { longDate } from '../format'
 import { ActivityLine } from '../components/ActivityLine'
-import { Chart, baseOption, chartTheme } from '../components/Chart'
+import { PaceChart } from '../components/TrendCharts'
+import { useWide } from '../useWide'
 
 const RANGE_DAYS = 90
 
@@ -19,6 +20,7 @@ export function ActivityPage() {
   const shown = filter === 'all' ? activities : activities.filter((a) => a.kind === filter)
   const byDate = useMemo(() => groupByDate(shown), [shown])
   const rows = activities.filter((a) => a.kind === 'row' && a.detail.paceSecPer500)
+  const wide = useWide()
 
   return (
     <div className="page">
@@ -29,20 +31,23 @@ export function ActivityPage() {
         </div>
       </header>
 
-      {rows.length > 1 && (
-        <section className="card">
-          <h2>Rowing pace</h2>
-          <p className="subtle small">Average split per session. Lower is faster.</p>
-          <PaceChart rows={rows} />
-        </section>
-      )}
+      <div className="two-col">
+        <div className="col">
+          <section className="card">
+            <h2>Log an activity</h2>
+            <AddActivityForm defaultDate={today} />
+          </section>
 
-      <section className="card">
-        <h2>Log an activity</h2>
-        <AddActivityForm defaultDate={today} />
-      </section>
+          {rows.length > 1 && (
+            <section className="card">
+              <h2>Rowing pace</h2>
+              <p className="subtle small">Average split per session. Lower is faster.</p>
+              <PaceChart rows={rows} height={wide ? 460 : 240} />
+            </section>
+          )}
+        </div>
 
-      <section className="card">
+      <section className="card col">
         <div className="card-header">
           <h2>History</h2>
           <select value={filter} onChange={(e) => setFilter(e.target.value as ActivityKind | 'all')}>
@@ -65,6 +70,7 @@ export function ActivityPage() {
           </div>
         ))}
       </section>
+      </div>
     </div>
   )
 }
@@ -73,41 +79,6 @@ function groupByDate(items: Activity[]): [string, Activity[]][] {
   const map = new Map<string, Activity[]>()
   for (const a of items) map.set(a.date, [...(map.get(a.date) ?? []), a])
   return [...map.entries()]
-}
-
-function PaceChart({ rows }: { rows: Activity[] }) {
-  const option = useMemo(() => {
-    const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
-    return {
-      ...baseOption(),
-      xAxis: {
-        type: 'category',
-        data: sorted.map((r) => r.date.slice(5)),
-        axisLine: { lineStyle: { color: chartTheme.grid } }
-      },
-      yAxis: {
-        type: 'value',
-        inverse: true,
-        scale: true,
-        splitLine: { lineStyle: { color: chartTheme.grid } },
-        axisLabel: { formatter: (v: number) => formatPace(v).replace(' /500m', '') }
-      },
-      tooltip: {
-        ...(baseOption().tooltip as object),
-        valueFormatter: (v: number) => formatPace(v)
-      },
-      series: [
-        {
-          type: 'line',
-          data: sorted.map((r) => r.detail.paceSecPer500),
-          symbolSize: 7,
-          lineStyle: { color: chartTheme.primary, width: 2 },
-          itemStyle: { color: chartTheme.primary }
-        }
-      ]
-    }
-  }, [rows])
-  return <Chart option={option} height={240} />
 }
 
 function AddActivityForm({ defaultDate }: { defaultDate: string }) {

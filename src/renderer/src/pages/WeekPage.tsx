@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { addDays, toLocalDate, weekStartOf } from '@shared/logic'
+import { addDays, dailyMeans, formatDuration, rollingAverage, toLocalDate, weekStartOf } from '@shared/logic'
 import { ACTIVITY_KINDS, KIND_LABELS, type ActivityKind, type DayView } from '@shared/types'
-import { api, errorText, keys, useInvalidate } from '../api'
+import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { useUi } from '../store'
-import { monthDay, weekday } from '../format'
+import { formatDistance, formatWeight, monthDay, weekday, weightFromKg } from '../format'
 import { ActivityLine } from '../components/ActivityLine'
+import { PaceChart, TREND_DAYS, WeightChart } from '../components/TrendCharts'
 
 export function WeekPage() {
   const today = toLocalDate(new Date())
@@ -62,9 +63,93 @@ export function WeekPage() {
 
       {week.error && <p className="error">{errorText(week.error)}</p>}
 
-      <div className="week-grid">
-        {data?.days.map((day) => <DayColumn key={day.date} day={day} isToday={day.date === today} />)}
+      <div className="week-layout">
+        <div className="week-grid">
+          {data?.days.map((day) => <DayColumn key={day.date} day={day} isToday={day.date === today} />)}
+        </div>
+        {data && <WeekRail weekStart={weekStart} days={data.days} />}
       </div>
+    </div>
+  )
+}
+
+/** Totals for the shown week plus the weight and rowing trends, beside the week on wide screens. */
+function WeekRail({ weekStart, days }: { weekStart: string; days: DayView[] }) {
+  const units = useSettings().data?.units ?? 'lb'
+  const today = toLocalDate(new Date())
+  const weightFrom = addDays(today, -44)
+  const weights = useQuery({
+    queryKey: keys.weights(weightFrom, today),
+    queryFn: () => api.listWeights(weightFrom, today)
+  }).data
+  const rowFrom = addDays(today, -55)
+  const recent = useQuery({
+    queryKey: keys.activities(rowFrom, today),
+    queryFn: () => api.listActivities(rowFrom, today)
+  }).data
+
+  const activities = days.flatMap((d) => d.activities)
+  const trainingSec = activities.reduce((s, a) => s + (a.durationSec ?? 0), 0)
+  const rowedM = activities.filter((a) => a.kind === 'row').reduce((s, a) => s + (a.distanceM ?? 0), 0)
+  const activeDays = days.filter((d) => d.activities.length > 0).length
+
+  const trend = useMemo(
+    () => rollingAverage(dailyMeans((weights ?? []).map((e) => ({ date: e.date, value: e.kg }))), TREND_DAYS),
+    [weights]
+  )
+  const shownTrend = trend.filter((p) => p.date >= addDays(today, -29))
+  const latest = trend.at(-1)
+  const weekAgo = trend.findLast((p) => p.date <= addDays(today, -7))
+  const change = latest && weekAgo ? weightFromKg(latest.value - weekAgo.value, units) : null
+  const rows = (recent ?? []).filter((a) => a.kind === 'row' && a.detail.paceSecPer500)
+
+  return (
+    <aside className="week-rail">
+      <section className="card">
+        <h2>{weekStart === weekStartOf(today) ? 'This week' : 'That week'}</h2>
+        <div className="mini-stats">
+          <MiniStat value={String(activities.length)} label="sessions" />
+          <MiniStat value={`${activeDays}/7`} label="active days" />
+          <MiniStat value={trainingSec ? formatDuration(trainingSec) : '–'} label="training time" />
+          <MiniStat value={rowedM ? formatDistance(rowedM) : '–'} label="rowed" />
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Weight trend</h2>
+        <div className="mini-stats">
+          <MiniStat value={latest ? formatWeight(latest.value, units) : '–'} label="trend weight" />
+          <MiniStat
+            value={change == null ? '–' : `${change > 0 ? '+' : ''}${change.toFixed(1)} ${units}`}
+            label="last 7 days"
+          />
+        </div>
+        {shownTrend.length > 1 && (
+          <WeightChart
+            entries={(weights ?? []).filter((w) => w.date >= addDays(today, -29))}
+            trend={shownTrend}
+            units={units}
+            height={200}
+            compact
+          />
+        )}
+      </section>
+
+      {rows.length > 1 && (
+        <section className="card">
+          <h2>Rowing pace, last 8 weeks</h2>
+          <PaceChart rows={rows} height={200} />
+        </section>
+      )}
+    </aside>
+  )
+}
+
+function MiniStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="mini-stat">
+      <div className="mini-stat-value">{value}</div>
+      <div className="mini-stat-label">{label}</div>
     </div>
   )
 }
