@@ -1,0 +1,28 @@
+appId: com.quasician.arete
+productName: Arete
+copyright: Copyright © 2026 Quasician
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+win:
+  target: nsis
+  icon: build/icon.png
+  artifactName: Arete-Setup-${version}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: Arete
+  # Keep data (database, settings, keys) when uninstalling or updating.
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: Quasician
+  repo: arete
+  # Publish real releases, not drafts, so installed copies see them and update.
+  releaseType: release

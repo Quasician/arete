@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+out/
+dist/
+*.log
+
+# Personal data and secrets must never be committed.
+# Arete keeps its database, settings and encrypted keys in its own data folder
+# (%APPDATA%\Arete), not in this repo; these lines are a second safety net.
+.env
+.env.*
+*.sqlite
+*.sqlite.*
+*.db
+settings.json
+arete.config.json
+data/
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

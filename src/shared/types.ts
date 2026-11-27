@@ -1,0 +1,178 @@
+// Types shared by the main process, the preload bridge and the window.
+
+export const ACTIVITY_KINDS = ['lift', 'row', 'climb', 'hike', 'run', 'walk', 'other'] as const
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
+
+export const KIND_LABELS: Record<ActivityKind, string> = {
+  lift: 'Lift',
+  row: 'Row',
+  climb: 'Climb',
+  hike: 'Hike',
+  run: 'Run',
+  walk: 'Walk',
+  other: 'Other'
+}
+
+export type ActivitySource = 'manual' | 'hevy' | 'concept2'
+
+export interface Activity {
+  id: number
+  kind: ActivityKind
+  source: ActivitySource
+  externalId: string | null
+  /** Local calendar date, YYYY-MM-DD. */
+  date: string
+  /** ISO timestamp when known. */
+  startedAt: string | null
+  title: string | null
+  durationSec: number | null
+  distanceM: number | null
+  /** Source-specific numbers, e.g. rowing pace or lifting volume. */
+  detail: ActivityDetail
+}
+
+export interface ActivityDetail {
+  paceSecPer500?: number
+  avgHeartRate?: number
+  strokeRate?: number
+  workoutType?: string
+  calories?: number
+  exercises?: number
+  sets?: number
+  volumeKg?: number
+}
+
+export interface NewActivity {
+  kind: ActivityKind
+  date: string
+  title?: string | null
+  durationSec?: number | null
+  distanceM?: number | null
+}
+
+export interface WeightEntry {
+  id: number
+  date: string
+  measuredAt: string
+  kg: number
+  fatPct: number | null
+  source: 'manual' | 'withings'
+}
+
+export interface NewWeight {
+  date: string
+  kg: number
+  fatPct?: number | null
+}
+
+export const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+export type MealSlot = (typeof MEAL_SLOTS)[number]
+export type Portion = 'small' | 'normal' | 'large'
+
+export interface Meal {
+  id: number
+  date: string
+  slot: MealSlot
+  description: string
+  portion: Portion
+  kcal: number | null
+  proteinG: number | null
+  source: 'plan' | 'manual' | 'estimate'
+}
+
+export interface NewMeal {
+  date: string
+  slot: MealSlot
+  description: string
+  portion: Portion
+  kcal?: number | null
+  proteinG?: number | null
+}
+
+/** Index 0 is Monday, 6 is Sunday. */
+export type WeeklyPlan = ActivityKind[][]
+
+export interface TrainingProgram {
+  name: string
+  /** YYYY-MM-DD of the program's first day. */
+  start: string
+  weeks: number
+  kind: ActivityKind
+}
+
+export type Units = 'lb' | 'kg'
+
+export const SECRET_NAMES = ['hevy', 'concept2'] as const
+export type SecretName = (typeof SECRET_NAMES)[number]
+
+export type SyncSource = 'hevy' | 'concept2'
+
+export interface SyncStatus {
+  at: string
+  ok: boolean
+  message: string
+}
+
+export interface PublicSettings {
+  units: Units
+  plan: WeeklyPlan
+  program: TrainingProgram | null
+  /** Which keys are saved. The keys themselves never leave the main process. */
+  secrets: Record<SecretName, boolean>
+  canEncrypt: boolean
+  lastSync: Partial<Record<SyncSource, SyncStatus>>
+}
+
+export interface SettingsPatch {
+  units?: Units
+  plan?: WeeklyPlan
+  program?: TrainingProgram | null
+}
+
+export interface DayView {
+  date: string
+  planned: ActivityKind[]
+  /** Planned kinds that have at least one matching activity that day. */
+  plannedDone: ActivityKind[]
+  activities: Activity[]
+}
+
+export interface WeekView {
+  weekStart: string
+  days: DayView[]
+  plannedCount: number
+  plannedDoneCount: number
+  program: { name: string; week: number; total: number; kind: ActivityKind } | null
+}
+
+export interface SyncReport {
+  results: Partial<Record<SyncSource, SyncStatus>>
+}
+
+export interface AppInfo {
+  version: string
+}
+
+/** The API the window can call, exposed by the preload script as window.arete. */
+export interface AreteApi {
+  appInfo(): Promise<AppInfo>
+  getSettings(): Promise<PublicSettings>
+  updateSettings(patch: SettingsPatch): Promise<PublicSettings>
+  setSecret(name: SecretName, value: string | null): Promise<PublicSettings>
+
+  getWeek(weekStart: string): Promise<WeekView>
+  listActivities(from: string, to: string): Promise<Activity[]>
+  addActivity(input: NewActivity): Promise<Activity>
+  deleteActivity(id: number): Promise<void>
+
+  listWeights(from: string, to: string): Promise<WeightEntry[]>
+  addWeight(input: NewWeight): Promise<WeightEntry>
+  deleteWeight(id: number): Promise<void>
+
+  listMeals(date: string): Promise<Meal[]>
+  addMeal(input: NewMeal): Promise<Meal>
+  deleteMeal(id: number): Promise<void>
+
+  syncNow(): Promise<SyncReport>
+  onSynced(callback: (report: SyncReport) => void): () => void
+}
