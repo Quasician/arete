@@ -32,7 +32,9 @@ jobs:
         run: |
           tag="v$(node -p "require('./package.json').version")"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if gh release view "$tag" > /dev/null 2>&1; then
+          # Released means the release exists AND has the update manifest, so an
+          # interrupted upload gets finished on the next run instead of skipped.
+          if gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx latest.yml; then
             echo "$tag is already released; nothing to do."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
