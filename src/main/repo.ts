@@ -17,6 +17,7 @@ import type {
   WeightEntry
 } from '../shared/types.ts'
 import type { ActivityRow } from './sync/map.ts'
+import type { WithingsWeight } from './importers/withings.ts'
 
 type ActivityRecord = typeof activities.$inferSelect
 type WeightRecord = typeof weights.$inferSelect
@@ -207,6 +208,41 @@ export class Repo {
       .get()
     this.store.changed()
     return toWeight(row)
+  }
+
+  /**
+   * Add weigh-ins from a Withings export. Each reading is keyed by its time,
+   * so importing overlapping exports never creates duplicates.
+   */
+  importWithingsWeights(rows: WithingsWeight[]): { added: number; updated: number } {
+    let added = 0
+    let updated = 0
+    for (const r of rows) {
+      const existing = this.db
+        .select()
+        .from(weights)
+        .where(and(eq(weights.source, 'withings'), eq(weights.externalId, r.measuredAt)))
+        .get()
+      if (!existing) {
+        this.db
+          .insert(weights)
+          .values({
+            date: r.date,
+            measuredAt: r.measuredAt,
+            kg: r.kg,
+            fatPct: r.fatPct,
+            source: 'withings',
+            externalId: r.measuredAt
+          })
+          .run()
+        added++
+      } else if (Math.abs(existing.kg - r.kg) > 0.0005 || existing.fatPct !== r.fatPct) {
+        this.db.update(weights).set({ kg: r.kg, fatPct: r.fatPct }).where(eq(weights.id, existing.id)).run()
+        updated++
+      }
+    }
+    if (added || updated) this.store.changed()
+    return { added, updated }
   }
 
   deleteWeight(id: number): void {

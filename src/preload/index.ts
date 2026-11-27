@@ -18,6 +18,7 @@ const api: AreteApi = {
   listWeights: call('listWeights'),
   addWeight: call('addWeight'),
   deleteWeight: call('deleteWeight'),
+  importWithings: call('importWithings'),
   listMeals: call('listMeals'),
   addMeal: call('addMeal'),
   deleteMeal: call('deleteMeal'),

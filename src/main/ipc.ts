@@ -1,9 +1,20 @@
-import { app, ipcMain, type BrowserWindow } from 'electron'
+import fs from 'node:fs'
+import path from 'node:path'
+import { app, dialog, ipcMain, type BrowserWindow } from 'electron'
 import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 import { syncAll } from './sync/index.ts'
+import { readWithingsExport } from './importers/withings.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
-import type { NewActivity, NewMeal, NewWeight, SecretName, SettingsPatch, SyncReport } from '../shared/types.ts'
+import type {
+  ImportResult,
+  NewActivity,
+  NewMeal,
+  NewWeight,
+  SecretName,
+  SettingsPatch,
+  SyncReport
+} from '../shared/types.ts'
 
 export const SYNCED_EVENT = 'arete:synced'
 
@@ -32,6 +43,28 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
   handle('listWeights', (from: string, to: string) => repo.listWeights(from, to))
   handle('addWeight', (input: NewWeight) => repo.addWeight(input))
   handle('deleteWeight', (id: number) => repo.deleteWeight(id))
+  handle('importWithings', async (): Promise<ImportResult | null> => {
+    const win = getWindow()
+    const options = {
+      title: 'Import a Withings export',
+      buttonLabel: 'Import',
+      properties: ['openFile' as const],
+      filters: [
+        { name: 'Withings export (ZIP or CSV)', extensions: ['zip', 'csv'] },
+        { name: 'All files', extensions: ['*'] }
+      ]
+    }
+    const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    if (picked.canceled || picked.filePaths.length === 0) return null
+    const file = picked.filePaths[0]
+    const stat = fs.statSync(file)
+    if (stat.size > 200 * 1024 * 1024) throw new Error('That file is too large to be a Withings export.')
+    const fileName = path.basename(file)
+    const rows = readWithingsExport(fileName, new Uint8Array(fs.readFileSync(file)))
+    const { added, updated } = repo.importWithingsWeights(rows)
+    const dates = rows.map((r) => r.date).sort()
+    return { fileName, total: rows.length, added, updated, from: dates[0] ?? null, to: dates.at(-1) ?? null }
+  })
 
   handle('listMeals', (date: string) => repo.listMeals(date))
   handle('addMeal', (input: NewMeal) => repo.addMeal(input))

@@ -1,17 +1,23 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { addDays, dailyMeans, rollingAverage, toLocalDate } from '@shared/logic'
-import type { Units, WeightEntry } from '@shared/types'
+import type { ImportResult, Units, WeightEntry } from '@shared/types'
 import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { formatWeight, longDate, weightFromKg, weightToKg } from '../format'
 import { TREND_DAYS, WeightChart } from '../components/TrendCharts'
 import { useWide } from '../useWide'
 
-const RANGE_DAYS = 120
+const RANGES = [
+  { label: '3 months', days: 91 },
+  { label: '1 year', days: 365 },
+  { label: 'All', days: null }
+] as const
 
 export function WeightPage() {
   const today = toLocalDate(new Date())
-  const from = addDays(today, -(RANGE_DAYS - 1))
+  const [rangeIndex, setRangeIndex] = useState(0)
+  const range = RANGES[rangeIndex]
+  const from = range.days ? addDays(today, -(range.days - 1)) : '1900-01-01'
   const units = useSettings().data?.units ?? 'lb'
   const list = useQuery({ queryKey: keys.weights(from, today), queryFn: () => api.listWeights(from, today) })
   const entries = list.data ?? []
@@ -34,6 +40,13 @@ export function WeightPage() {
             The line is a {TREND_DAYS}-day average, so daily swings from water and salt don't hide the real trend.
           </p>
         </div>
+        <div className="segmented">
+          {RANGES.map((r, i) => (
+            <button key={r.label} className={i === rangeIndex ? 'active' : ''} onClick={() => setRangeIndex(i)}>
+              {r.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       <div className="weight-layout">
@@ -44,7 +57,7 @@ export function WeightPage() {
               label="Change over 7 days"
               value={change == null ? '–' : `${change > 0 ? '+' : ''}${weightFromKg(change, units).toFixed(1)} ${units}`}
             />
-            <Stat label="Weigh-ins" value={String(entries.length)} />
+            <Stat label={`Weigh-ins (${range.label.toLowerCase()})`} value={String(entries.length)} />
           </div>
           {entries.length > 0 && (
             <section className="card">
@@ -54,9 +67,10 @@ export function WeightPage() {
         </div>
 
         <div className="col">
+          <WithingsImportCard />
+
           <section className="card">
-            <h2>Add a weigh-in</h2>
-            <p className="subtle small">Withings readings will import automatically in a later version.</p>
+            <h2>Add a weigh-in by hand</h2>
             <AddWeightForm units={units} today={today} />
           </section>
 
@@ -78,6 +92,53 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
     </div>
+  )
+}
+
+function WithingsImportCard() {
+  const invalidate = useInvalidate()
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function runImport() {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await api.importWithings()
+      if (r) {
+        setResult(r)
+        invalidate('weights')
+      }
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Import from Withings</h2>
+      <p className="subtle small">
+        In the Withings app, go to Profile → Settings → Export All Health Data → Start my archive. Withings emails you
+        a ZIP file; import it here as is. Importing the same weigh-ins again never creates duplicates.
+      </p>
+      <button className="button" onClick={runImport} disabled={busy}>
+        {busy ? 'Importing…' : 'Import Withings export…'}
+      </button>
+      {result && (
+        <p className="subtle small">
+          {result.added === 0 && result.updated === 0
+            ? `Already up to date: all ${result.total} weigh-ins from ${result.fileName} were imported before.`
+            : `Added ${result.added} new weigh-in${result.added === 1 ? '' : 's'}` +
+              (result.updated ? ` and updated ${result.updated}` : '') +
+              ` from ${result.fileName}` +
+              (result.from && result.to ? ` (${longDate(result.from)} – ${longDate(result.to)}).` : '.')}
+        </p>
+      )}
+      {error && <p className="error small">{error}</p>}
+    </section>
   )
 }
 
@@ -137,6 +198,7 @@ function WeightList({ entries, units }: { entries: WeightEntry[]; units: Units }
             <td>{longDate(e.date)}</td>
             <td>{formatWeight(e.kg, units)}</td>
             <td>{e.fatPct != null ? `${e.fatPct}% fat` : ''}</td>
+            <td className="subtle small">{e.source === 'withings' ? 'Withings' : 'Logged'}</td>
             <td className="right">
               {e.source === 'manual' && (
                 <button

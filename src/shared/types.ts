@@ -149,6 +149,17 @@ export interface SyncReport {
   results: Partial<Record<SyncSource, SyncStatus>>
 }
 
+export interface ImportResult {
+  fileName: string
+  /** Weigh-ins found in the file. */
+  total: number
+  added: number
+  updated: number
+  /** Date range of the weigh-ins in the file. */
+  from: string | null
+  to: string | null
+}
+
 export interface AppInfo {
   version: string
 }
@@ -168,6 +179,8 @@ export interface AreteApi {
   listWeights(from: string, to: string): Promise<WeightEntry[]>
   addWeight(input: NewWeight): Promise<WeightEntry>
   deleteWeight(id: number): Promise<void>
+  /** Opens a file picker for a Withings export. Resolves to null if cancelled. */
+  importWithings(): Promise<ImportResult | null>
 
   listMeals(date: string): Promise<Meal[]>
   addMeal(input: NewMeal): Promise<Meal>

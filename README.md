@@ -9,9 +9,9 @@ In Aristotle's ethics, *arete* (excellence) isn't inborn. It's built through rep
 - **Week:** your weekly plan next to what actually happened, with one-click check-ins and progress through a training program ("week 5 of 12").
 - **Activity:** lifting imported from Hevy, rowing imported from the Concept2 Logbook, and anything else logged by hand. Includes a rowing pace chart.
 - **Food:** meals described in plain words, with optional calories and protein.
-- **Weight:** weigh-ins with a 7-day trend line, so daily water swings don't hide the real direction.
+- **Weight:** weigh-ins with a 7-day trend line, so daily water swings don't hide the real direction. Import the ZIP that Withings emails you (Withings app → Profile → Settings → Export All Health Data); re-importing never duplicates readings.
 
-Planned next: calorie estimates from meal descriptions, planned meals from the grocery rotation, Withings scale import, and an energy-balance view that estimates real daily burn from intake and weight trend.
+Planned next: calorie estimates from meal descriptions, planned meals from the grocery rotation, a live Withings connection, and an energy-balance view that estimates real daily burn from intake and weight trend.
 
 ## Privacy
 
