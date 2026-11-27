@@ -21,3 +21,6 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+
+# Python bytecode
+__pycache__/
