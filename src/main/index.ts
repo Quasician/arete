@@ -5,19 +5,27 @@ import { Repo } from './repo.ts'
 import { Settings } from './settings.ts'
 import { registerIpc, runSync } from './ipc.ts'
 import { loadWindowState, trackWindowState } from './windowState.ts'
-import { startUpdater } from './updater.ts'
+import { checkForUpdatesAndAnnounce, startUpdater } from './updater.ts'
 import { applyOpenAtLogin } from './startup.ts'
 
 const SYNC_EVERY_MS = 60 * 60 * 1000
 
 let mainWindow: BrowserWindow | null = null
+
+/** Passed by the "Check for updates" item in the taskbar's right-click menu. */
+const CHECK_FOR_UPDATES_ARG = '--check-for-updates'
 let store: Store | null = null
 
 // One Arete at a time: launching it again focuses the open window.
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // The taskbar menu launches Arete again with a flag; the running copy handles it.
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes(CHECK_FOR_UPDATES_ARG)) {
+      void checkForUpdatesAndAnnounce()
+      return
+    }
     if (!mainWindow) return
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
@@ -103,10 +111,27 @@ async function start(): Promise<void> {
 
   startUpdater(() => mainWindow)
   applyOpenAtLogin(settings.openAtLogin)
+  addTaskbarMenu()
+  if (process.argv.includes(CHECK_FOR_UPDATES_ARG)) void checkForUpdatesAndAnnounce()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
   })
+}
+
+/** Adds "Check for updates" to the menu you get by right-clicking Arete on the taskbar. */
+function addTaskbarMenu(): void {
+  if (process.platform !== 'win32' || !app.isPackaged) return
+  app.setUserTasks([
+    {
+      program: process.execPath,
+      arguments: CHECK_FOR_UPDATES_ARG,
+      iconPath: process.execPath,
+      iconIndex: 0,
+      title: 'Check for updates',
+      description: 'Check for a new version of Arete'
+    }
+  ])
 }
 
 app.on('window-all-closed', () => {
