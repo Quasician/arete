@@ -1,16 +1,14 @@
 import path from 'node:path'
 import { app, BrowserWindow, Menu, shell } from 'electron'
-import electronUpdater from 'electron-updater'
 import { Store } from './db.ts'
 import { Repo } from './repo.ts'
 import { Settings } from './settings.ts'
 import { registerIpc, runSync } from './ipc.ts'
 import { loadWindowState, trackWindowState } from './windowState.ts'
-
-const { autoUpdater } = electronUpdater
+import { startUpdater } from './updater.ts'
+import { applyOpenAtLogin } from './startup.ts'
 
 const SYNC_EVERY_MS = 60 * 60 * 1000
-const UPDATE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 
 let mainWindow: BrowserWindow | null = null
 let store: Store | null = null
@@ -103,11 +101,8 @@ async function start(): Promise<void> {
   setTimeout(sync, 5_000)
   setInterval(sync, SYNC_EVERY_MS)
 
-  if (app.isPackaged) {
-    const check = () => void autoUpdater.checkForUpdatesAndNotify().catch(() => undefined)
-    check()
-    setInterval(check, UPDATE_CHECK_EVERY_MS)
-  }
+  startUpdater(() => mainWindow)
+  applyOpenAtLogin(settings.openAtLogin)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()

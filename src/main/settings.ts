@@ -7,6 +7,9 @@ import { safeStorage } from 'electron'
 import { emptyPlan } from '../shared/logic.ts'
 import {
   ACTIVITY_KINDS,
+  type AgeGroup,
+  type RowingTrainingLevel,
+  type TypicalMinutes,
   SECRET_NAMES,
   type PublicSettings,
   type SecretName,
@@ -19,6 +22,10 @@ import {
 
 interface StoredSettings {
   units: 'lb' | 'kg'
+  typicalMinutes: TypicalMinutes
+  ageGroup: AgeGroup
+  rowingLevel: RowingTrainingLevel
+  openAtLogin: boolean
   plan: WeeklyPlan
   program: TrainingProgram | null
   secrets: Partial<Record<SecretName, string>>
@@ -27,6 +34,10 @@ interface StoredSettings {
 
 const DEFAULTS: StoredSettings = {
   units: 'lb',
+  typicalMinutes: {},
+  ageGroup: '20-29',
+  rowingLevel: 'low',
+  openAtLogin: true,
   plan: emptyPlan(),
   program: null,
   secrets: {},
@@ -38,6 +49,16 @@ function validPlan(plan: unknown): plan is WeeklyPlan {
     Array.isArray(plan) &&
     plan.length === 7 &&
     plan.every((day) => Array.isArray(day) && day.every((k) => ACTIVITY_KINDS.includes(k)))
+  )
+}
+
+function validTypicalMinutes(t: unknown): t is TypicalMinutes {
+  return (
+    typeof t === 'object' &&
+    t !== null &&
+    Object.entries(t).every(
+      ([k, v]) => ACTIVITY_KINDS.includes(k as never) && Number.isInteger(v) && (v as number) > 0 && (v as number) <= 1440
+    )
   )
 }
 
@@ -68,6 +89,10 @@ export class Settings {
       const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Partial<StoredSettings>
       return {
         units: parsed.units === 'kg' ? 'kg' : 'lb',
+        typicalMinutes: validTypicalMinutes(parsed.typicalMinutes) ? parsed.typicalMinutes : {},
+        ageGroup: parsed.ageGroup === '30-39' ? '30-39' : '20-29',
+        rowingLevel: parsed.rowingLevel === 'high' ? 'high' : 'low',
+        openAtLogin: parsed.openAtLogin !== false,
         plan: validPlan(parsed.plan) ? parsed.plan : emptyPlan(),
         program: validProgram(parsed.program) ? (parsed.program ?? null) : null,
         secrets: parsed.secrets ?? {},
@@ -88,6 +113,9 @@ export class Settings {
   get units() {
     return this.data.units
   }
+  get openAtLogin() {
+    return this.data.openAtLogin
+  }
   get plan() {
     return this.data.plan
   }
@@ -102,6 +130,10 @@ export class Settings {
     >
     return {
       units: this.data.units,
+      typicalMinutes: this.data.typicalMinutes,
+      ageGroup: this.data.ageGroup,
+      rowingLevel: this.data.rowingLevel,
+      openAtLogin: this.data.openAtLogin,
       plan: this.data.plan,
       program: this.data.program,
       secrets,
@@ -114,6 +146,22 @@ export class Settings {
     if (patch.units !== undefined) {
       if (patch.units !== 'lb' && patch.units !== 'kg') throw new Error('Invalid units')
       this.data.units = patch.units
+    }
+    if (patch.typicalMinutes !== undefined) {
+      if (!validTypicalMinutes(patch.typicalMinutes)) throw new Error('Invalid session lengths')
+      this.data.typicalMinutes = patch.typicalMinutes
+    }
+    if (patch.ageGroup !== undefined) {
+      if (patch.ageGroup !== '20-29' && patch.ageGroup !== '30-39') throw new Error('Invalid age group')
+      this.data.ageGroup = patch.ageGroup
+    }
+    if (patch.rowingLevel !== undefined) {
+      if (patch.rowingLevel !== 'low' && patch.rowingLevel !== 'high') throw new Error('Invalid training level')
+      this.data.rowingLevel = patch.rowingLevel
+    }
+    if (patch.openAtLogin !== undefined) {
+      if (typeof patch.openAtLogin !== 'boolean') throw new Error('Invalid start-up setting')
+      this.data.openAtLogin = patch.openAtLogin
     }
     if (patch.plan !== undefined) {
       if (!validPlan(patch.plan)) throw new Error('Invalid weekly plan')

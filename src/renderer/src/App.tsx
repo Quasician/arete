@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, errorText, useSettings, useSyncRefresh } from './api'
+import { api, errorText, useSettings, useSyncRefresh, useUpdateStatus } from './api'
 import { useUi, type Page } from './store'
 import { timeAgo } from './format'
 import { WeekPage } from './pages/WeekPage'
@@ -8,6 +8,7 @@ import { ActivityPage } from './pages/ActivityPage'
 import { FoodPage } from './pages/FoodPage'
 import { WeightPage } from './pages/WeightPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ProgressPage } from './pages/ProgressPage'
 import icon from './assets/icon.png'
 
 const NAV: { page: Page; label: string }[] = [
@@ -15,6 +16,7 @@ const NAV: { page: Page; label: string }[] = [
   { page: 'activity', label: 'Activity' },
   { page: 'food', label: 'Food' },
   { page: 'weight', label: 'Weight' },
+  { page: 'progress', label: 'Progress' },
   { page: 'settings', label: 'Settings' }
 ]
 
@@ -47,6 +49,7 @@ export function App() {
         {page === 'activity' && <ActivityPage />}
         {page === 'food' && <FoodPage />}
         {page === 'weight' && <WeightPage />}
+        {page === 'progress' && <ProgressPage />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>
@@ -93,7 +96,22 @@ function SyncPanel() {
         <div className="sync-line">Add your Hevy and Concept2 keys in Settings to import workouts.</div>
       )}
       {error && <div className="sync-line bad">{error}</div>}
+      <UpdateNotice />
       {version && <div className="version">v{version}</div>}
+    </div>
+  )
+}
+
+function UpdateNotice() {
+  const status = useUpdateStatus()
+  if (status?.state === 'downloading') return <div className="sync-line">Downloading update {status.version}…</div>
+  if (status?.state !== 'ready') return null
+  return (
+    <div className="update-ready">
+      <div>Version {status.version} is ready.</div>
+      <button className="button small" onClick={() => api.installUpdate()}>
+        Restart to update
+      </button>
     </div>
   )
 }

@@ -5,6 +5,8 @@ import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 import { syncAll } from './sync/index.ts'
 import { readWithingsExport } from './importers/withings.ts'
+import { checkForUpdates, getUpdateStatus, installUpdate } from './updater.ts'
+import { applyOpenAtLogin } from './startup.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
 import type {
   ImportResult,
@@ -22,10 +24,14 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
   const handle = <A extends unknown[], R>(channel: string, fn: (...args: A) => R) =>
     ipcMain.handle(`arete:${channel}`, (_event, ...args) => fn(...(args as A)))
 
-  handle('appInfo', () => ({ version: app.getVersion() }))
+  handle('appInfo', () => ({ version: app.getVersion(), packaged: app.isPackaged }))
+  handle('getUpdateStatus', () => getUpdateStatus())
+  handle('checkForUpdates', () => checkForUpdates())
+  handle('installUpdate', () => installUpdate())
   handle('getSettings', () => settings.public())
   handle('updateSettings', (patch: SettingsPatch) => {
     settings.update(patch)
+    if (patch.openAtLogin !== undefined) applyOpenAtLogin(settings.openAtLogin)
     return settings.public()
   })
   handle('setSecret', (name: SecretName, value: string | null) => {

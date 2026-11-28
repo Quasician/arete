@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AreteApi, SyncReport } from '../shared/types.ts'
+import type { AreteApi, SyncReport, UpdateStatus } from '../shared/types.ts'
 
 const call =
   (channel: string) =>
@@ -22,6 +22,14 @@ const api: AreteApi = {
   listMeals: call('listMeals'),
   addMeal: call('addMeal'),
   deleteMeal: call('deleteMeal'),
+  getUpdateStatus: call('getUpdateStatus'),
+  checkForUpdates: call('checkForUpdates'),
+  installUpdate: call('installUpdate'),
+  onUpdateStatus(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
+    ipcRenderer.on('arete:update', listener)
+    return () => ipcRenderer.removeListener('arete:update', listener)
+  },
   syncNow: call('syncNow'),
   onSynced(callback) {
     const listener = (_event: Electron.IpcRendererEvent, report: SyncReport) => callback(report)

@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SettingsPatch } from '@shared/types'
+import type { SettingsPatch, UpdateStatus } from '@shared/types'
 
 export const api = window.arete
 
@@ -51,4 +51,19 @@ export function errorText(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
   // Electron prefixes errors thrown in the main process; show only the message.
   return raw.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+}
+
+/** Live update status from the main process. */
+export function useUpdateStatus(): UpdateStatus | undefined {
+  const [status, setStatus] = useState<UpdateStatus>()
+  useEffect(() => {
+    let alive = true
+    void api.getUpdateStatus().then((s) => alive && setStatus(s))
+    const off = api.onUpdateStatus(setStatus)
+    return () => {
+      alive = false
+      off()
+    }
+  }, [])
+  return status
 }

@@ -11,6 +11,9 @@ In Aristotle's ethics, *arete* (excellence) isn't inborn. It's built through rep
 - **Food:** meals described in plain words, with optional calories and protein.
 - **Weight:** weigh-ins with a 7-day trend line, so daily water swings don't hide the real direction. Import the ZIP that Withings emails you (Withings app → Profile → Settings → Export All Health Data); re-importing never duplicates readings.
 
+- **Progress:** weekly active minutes against the 150–300 minute guideline, estimated one-rep max per exercise from Hevy, and VO2max estimated from Concept2 2,000 m tests (Concept2's formula) against men's FRIEND registry percentiles, with the test protocol.
+- **App:** starts with Windows (can be turned off in Settings), and checks for updates at start-up, every six hours, or on demand, with a restart-to-update button.
+
 Planned next: calorie estimates from meal descriptions, planned meals from the grocery rotation, a live Withings connection, and an energy-balance view that estimates real daily burn from intake and weight trend.
 
 ## Privacy

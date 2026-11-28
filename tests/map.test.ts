@@ -25,7 +25,10 @@ test('mapHevyWorkout counts working sets and volume, skipping warm-ups', () => {
   assert.equal(row.source, 'hevy')
   assert.equal(row.externalId, 'abc')
   assert.equal(row.durationSec, 3930)
-  assert.deepEqual(row.detail, { exercises: 2, sets: 3, volumeKg: 450 })
+  assert.equal(row.detail.exercises, 2)
+  assert.equal(row.detail.sets, 3)
+  assert.equal(row.detail.volumeKg, 450)
+  assert.equal(row.detail.lifts?.length, 2)
 })
 
 test('mapHevyWorkout rejects records without an id or start time', () => {

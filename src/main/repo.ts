@@ -175,6 +175,16 @@ export class Repo {
     return row?.date ?? null
   }
 
+  /** True if some Hevy workouts were imported before per-exercise detail was stored. */
+  hevyNeedsBackfill(): boolean {
+    return this.db
+      .select({ detail: activities.detail })
+      .from(activities)
+      .where(eq(activities.source, 'hevy'))
+      .all()
+      .some((r) => !('lifts' in parseDetail(r.detail)))
+  }
+
   deleteActivity(id: number): void {
     this.db.delete(activities).where(eq(activities.id, id)).run()
     this.store.changed()

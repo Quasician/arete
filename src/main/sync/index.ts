@@ -40,7 +40,8 @@ interface HevyPage {
 }
 
 export async function syncHevy(apiKey: string, repo: Repo): Promise<string> {
-  const incremental = repo.latestActivityDate('hevy') !== null
+  // Re-read everything once if older imports lack per-exercise detail.
+  const incremental = repo.latestActivityDate('hevy') !== null && !repo.hevyNeedsBackfill()
   let added = 0
   for (let page = 1; page <= MAX_PAGES; page++) {
     const data = await getJson<HevyPage>(`https://api.hevyapp.com/v1/workouts?page=${page}&pageSize=10`, {

@@ -1,6 +1,7 @@
 // Turns Hevy and Concept2 API records into Arete activities. Kept free of
 // network and database code so it can be tested on sample payloads.
-import type { ActivityDetail, ActivityKind, ActivitySource } from '../../shared/types.ts'
+import type { ActivityDetail, ActivityKind, ActivitySource, LiftSummary } from '../../shared/types.ts'
+import { estimateOneRepMax } from '../../shared/logic.ts'
 import { toLocalDate } from '../../shared/logic.ts'
 
 export interface ActivityRow {
@@ -28,7 +29,7 @@ export interface HevyWorkout {
   title?: string | null
   start_time?: string | null
   end_time?: string | null
-  exercises?: { title?: string | null; sets?: HevySet[] | null }[] | null
+  exercises?: { title?: string | null; exercise_template_id?: string | null; sets?: HevySet[] | null }[] | null
 }
 
 export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
@@ -39,12 +40,31 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
   const exercises = w.exercises ?? []
   let sets = 0
   let volumeKg = 0
+  const lifts: LiftSummary[] = []
   for (const ex of exercises) {
+    const lift: LiftSummary = {
+      name: ex.title?.trim() || 'Exercise',
+      templateId: ex.exercise_template_id ?? null,
+      sets: 0,
+      bestE1rmKg: null,
+      topWeightKg: null,
+      bestReps: 0
+    }
     for (const s of ex.sets ?? []) {
       if (s.type === 'warmup') continue
       sets++
-      if (s.weight_kg && s.reps) volumeKg += s.weight_kg * s.reps
+      lift.sets++
+      const reps = s.reps ?? 0
+      const weight = s.weight_kg ?? 0
+      if (weight && reps) volumeKg += weight * reps
+      lift.bestReps = Math.max(lift.bestReps, reps)
+      if (weight > 0) {
+        lift.topWeightKg = Math.max(lift.topWeightKg ?? 0, weight)
+        const e1rm = estimateOneRepMax(weight, reps)
+        if (e1rm != null) lift.bestE1rmKg = Math.max(lift.bestE1rmKg ?? 0, Math.round(e1rm * 10) / 10)
+      }
     }
+    if (lift.sets > 0) lifts.push(lift)
   }
   return {
     kind: 'lift',
@@ -55,7 +75,7 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
     title: w.title ?? null,
     durationSec: end && !isNaN(end.getTime()) ? Math.round((end.getTime() - start.getTime()) / 1000) : null,
     distanceM: null,
-    detail: { exercises: exercises.length, sets, volumeKg: Math.round(volumeKg) }
+    detail: { exercises: exercises.length, sets, volumeKg: Math.round(volumeKg), lifts }
   }
 }
 

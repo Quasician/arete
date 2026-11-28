@@ -1,16 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toLocalDate } from '@shared/logic'
 import {
   ACTIVITY_KINDS,
   KIND_LABELS,
   type ActivityKind,
+  type AgeGroup,
   type PublicSettings,
+  type RowingTrainingLevel,
+  type TypicalMinutes,
+  type UpdateStatus,
   type SecretName,
   type TrainingProgram,
   type WeeklyPlan
 } from '@shared/types'
-import { api, errorText, keys, useSettings, useUpdateSettings } from '../api'
+import { api, errorText, keys, useSettings, useUpdateSettings, useUpdateStatus } from '../api'
 import { timeAgo } from '../format'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -43,10 +47,12 @@ export function SettingsPage() {
         <div className="col">
           <KeysCard settings={settings.data} />
           <ProgramCard program={settings.data.program} />
-          <UnitsCard settings={settings.data} />
+          <FitnessCard settings={settings.data} />
+          <AppCard settings={settings.data} />
         </div>
         <div className="col">
           <PlanCard plan={settings.data.plan} />
+          <TypicalMinutesCard settings={settings.data} />
         </div>
       </div>
     </div>
@@ -247,18 +253,152 @@ function ProgramCard({ program }: { program: TrainingProgram | null }) {
   )
 }
 
-function UnitsCard({ settings }: { settings: PublicSettings }) {
+function FitnessCard({ settings }: { settings: PublicSettings }) {
   const update = useUpdateSettings()
   return (
     <section className="card">
-      <h2>Units</h2>
-      <div className="segmented">
-        {(['lb', 'kg'] as const).map((u) => (
-          <button key={u} className={settings.units === u ? 'active' : ''} onClick={() => update.mutate({ units: u })}>
-            {u === 'lb' ? 'Pounds' : 'Kilograms'}
-          </button>
-        ))}
+      <h2>Units and comparisons</h2>
+      <div className="settings-grid">
+        <span>Weight units</span>
+        <div className="segmented">
+          {(['lb', 'kg'] as const).map((u) => (
+            <button key={u} className={settings.units === u ? 'active' : ''} onClick={() => update.mutate({ units: u })}>
+              {u === 'lb' ? 'Pounds' : 'Kilograms'}
+            </button>
+          ))}
+        </div>
+        <span>VO2max reference group</span>
+        <div className="segmented">
+          {(['20-29', '30-39'] as AgeGroup[]).map((g) => (
+            <button key={g} className={settings.ageGroup === g ? 'active' : ''} onClick={() => update.mutate({ ageGroup: g })}>
+              Men {g}
+            </button>
+          ))}
+        </div>
+        <span>Rowing training level</span>
+        <div>
+          <div className="segmented">
+            {(['low', 'high'] as RowingTrainingLevel[]).map((l) => (
+              <button key={l} className={settings.rowingLevel === l ? 'active' : ''} onClick={() => update.mutate({ rowingLevel: l })}>
+                {l === 'low' ? 'Not highly trained' : 'Highly trained'}
+              </button>
+            ))}
+          </div>
+          <p className="subtle small">
+            Concept2 counts as highly trained someone who has rowed at least four days a week for several years. It
+            changes the VO2max formula.
+          </p>
+        </div>
       </div>
+      {update.error && <p className="error small">{errorText(update.error)}</p>}
     </section>
   )
+}
+
+function TypicalMinutesCard({ settings }: { settings: PublicSettings }) {
+  const update = useUpdateSettings()
+  const [draft, setDraft] = useState<Record<string, string>>(() =>
+    Object.fromEntries(ACTIVITY_KINDS.map((k) => [k, settings.typicalMinutes[k] ? String(settings.typicalMinutes[k]) : '']))
+  )
+  const parsed: TypicalMinutes = {}
+  for (const k of ACTIVITY_KINDS) {
+    const n = Number(draft[k])
+    if (draft[k] && Number.isInteger(n) && n > 0 && n <= 1440) parsed[k] = n
+  }
+  const dirty = JSON.stringify(parsed) !== JSON.stringify(settings.typicalMinutes)
+  return (
+    <section className="card">
+      <h2>Typical session length</h2>
+      <p className="subtle small">
+        Used for sessions logged without a duration, such as one-click check-ins, so they count toward weekly active
+        minutes. Leave blank to not count them.
+      </p>
+      <div className="minutes-grid">
+        {ACTIVITY_KINDS.map((k) => (
+          <label key={k}>
+            {KIND_LABELS[k]}
+            <input
+              type="number"
+              min="1"
+              max="1440"
+              placeholder="min"
+              value={draft[k]}
+              onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+            />
+          </label>
+        ))}
+      </div>
+      <button className="button" disabled={!dirty || update.isPending} onClick={() => update.mutate({ typicalMinutes: parsed })}>
+        Save lengths
+      </button>
+      {update.error && <p className="error small">{errorText(update.error)}</p>}
+    </section>
+  )
+}
+
+function AppCard({ settings }: { settings: PublicSettings }) {
+  const update = useUpdateSettings()
+  const info = useQuery({ queryKey: ['appInfo'], queryFn: () => api.appInfo() }).data
+  const status = useUpdateStatus()
+  const [checking, setChecking] = useState(false)
+
+  async function check() {
+    setChecking(true)
+    try {
+      await api.checkForUpdates()
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>App</h2>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.openAtLogin}
+          onChange={(e) => update.mutate({ openAtLogin: e.target.checked })}
+        />
+        Open Arete when Windows starts
+      </label>
+      <div className="update-row">
+        <span>Version {info?.version ?? ''}</span>
+        <span className="subtle small">{describeUpdate(status)}</span>
+        {status?.state === 'ready' ? (
+          <button className="button small" onClick={() => api.installUpdate()}>
+            Restart to update
+          </button>
+        ) : (
+          <button
+            className="button small ghost"
+            onClick={check}
+            disabled={checking || status?.state === 'checking' || status?.state === 'downloading' || status?.state === 'unavailable'}
+          >
+            Check for updates
+          </button>
+        )}
+      </div>
+      {update.error && <p className="error small">{errorText(update.error)}</p>}
+    </section>
+  )
+}
+
+export function describeUpdate(status: UpdateStatus | undefined): string {
+  switch (status?.state) {
+    case 'checking':
+      return 'Checking for updates…'
+    case 'downloading':
+      return `Downloading ${status.version} (${status.percent}%)…`
+    case 'ready':
+      return `Version ${status.version} is ready to install.`
+    case 'latest':
+      return `Up to date (checked ${timeAgo(status.checkedAt)}).`
+    case 'error':
+      return `Couldn't check for updates: ${status.message}`
+    case 'unavailable':
+      return 'Updates only apply to the installed app.'
+    default:
+      return 'Checks automatically at start-up and every six hours.'
+  }
 }

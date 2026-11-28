@@ -31,6 +31,20 @@ export interface Activity {
   detail: ActivityDetail
 }
 
+/** Best set of one exercise in one Hevy workout. */
+export interface LiftSummary {
+  name: string
+  templateId: string | null
+  /** Working sets (warm-ups excluded). */
+  sets: number
+  /** Best estimated one-rep max in kg (Epley), or null for bodyweight-only work. */
+  bestE1rmKg: number | null
+  /** Heaviest working weight in kg, or null for bodyweight-only work. */
+  topWeightKg: number | null
+  /** Most reps in a single working set. */
+  bestReps: number
+}
+
 export interface ActivityDetail {
   paceSecPer500?: number
   avgHeartRate?: number
@@ -40,6 +54,8 @@ export interface ActivityDetail {
   exercises?: number
   sets?: number
   volumeKg?: number
+  /** Per-exercise bests, for strength charts. */
+  lifts?: LiftSummary[]
 }
 
 export interface NewActivity {
@@ -102,6 +118,15 @@ export interface TrainingProgram {
 
 export type Units = 'lb' | 'kg'
 
+/** Age groups with VO2max reference percentiles (FRIEND registry, men). */
+export type AgeGroup = '20-29' | '30-39'
+
+/** Concept2's VO2max formula differs for highly trained rowers. */
+export type RowingTrainingLevel = 'low' | 'high'
+
+/** Typical minutes for sessions logged without a duration, by activity type. */
+export type TypicalMinutes = Partial<Record<ActivityKind, number>>
+
 export const SECRET_NAMES = ['hevy', 'concept2'] as const
 export type SecretName = (typeof SECRET_NAMES)[number]
 
@@ -115,6 +140,11 @@ export interface SyncStatus {
 
 export interface PublicSettings {
   units: Units
+  typicalMinutes: TypicalMinutes
+  ageGroup: AgeGroup
+  rowingLevel: RowingTrainingLevel
+  /** Start Arete when Windows starts. */
+  openAtLogin: boolean
   plan: WeeklyPlan
   program: TrainingProgram | null
   /** Which keys are saved. The keys themselves never leave the main process. */
@@ -125,6 +155,10 @@ export interface PublicSettings {
 
 export interface SettingsPatch {
   units?: Units
+  typicalMinutes?: TypicalMinutes
+  ageGroup?: AgeGroup
+  rowingLevel?: RowingTrainingLevel
+  openAtLogin?: boolean
   plan?: WeeklyPlan
   program?: TrainingProgram | null
 }
@@ -162,7 +196,18 @@ export interface ImportResult {
 
 export interface AppInfo {
   version: string
+  /** False when running from source, where updates and start-up launch don't apply. */
+  packaged: boolean
 }
+
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'ready'; version: string }
+  | { state: 'latest'; checkedAt: string }
+  | { state: 'error'; message: string }
+  | { state: 'unavailable' }
 
 /** The API the window can call, exposed by the preload script as window.arete. */
 export interface AreteApi {
@@ -185,6 +230,12 @@ export interface AreteApi {
   listMeals(date: string): Promise<Meal[]>
   addMeal(input: NewMeal): Promise<Meal>
   deleteMeal(id: number): Promise<void>
+
+  getUpdateStatus(): Promise<UpdateStatus>
+  checkForUpdates(): Promise<UpdateStatus>
+  /** Quits, installs the downloaded update and reopens Arete. */
+  installUpdate(): Promise<void>
+  onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
 
   syncNow(): Promise<SyncReport>
   onSynced(callback: (report: SyncReport) => void): () => void

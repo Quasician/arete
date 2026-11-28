@@ -184,6 +184,15 @@ export function morningTrend(entries: WeightEntry[], windowDays: number): Mornin
   return { daily, trend: rollingAverage(daily, windowDays), gapKg, pairedDays: gaps.length }
 }
 
+/**
+ * Estimated one-rep max (Epley: weight x (1 + reps/30)). Sets above 12 reps
+ * predict a max poorly, so they are left out.
+ */
+export function estimateOneRepMax(weight: number, reps: number): number | null {
+  if (!(weight > 0) || !(reps >= 1) || reps > 12) return null
+  return reps === 1 ? weight : weight * (1 + reps / 30)
+}
+
 export const KG_PER_LB = 0.45359237
 
 export function formatDuration(sec: number | null): string {

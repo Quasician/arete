@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type Page = 'week' | 'activity' | 'food' | 'weight' | 'settings'
+export type Page = 'week' | 'activity' | 'food' | 'weight' | 'progress' | 'settings'
 
 interface UiState {
   page: Page
