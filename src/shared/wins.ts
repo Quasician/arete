@@ -2,6 +2,7 @@
 import { addDays, daysBetween, type Point } from './logic.ts'
 import { estimateVo2Max, isTwoKTest, liftHistories } from './progress.ts'
 import type { HabitStatus } from './habits.ts'
+import type { GoalProgress } from './goals.ts'
 import type { Activity } from './types.ts'
 
 export interface Win {
@@ -20,7 +21,8 @@ export function findWins(
   trend: Point[],
   statuses: HabitStatus[],
   formatKg: (kg: number) => string,
-  since: string
+  since: string,
+  goals: GoalProgress[] = []
 ): Win[] {
   const wins: Win[] = []
 
@@ -71,6 +73,19 @@ export function findWins(
         low = p.value
       }
     }
+  }
+
+  // Strength goals reached.
+  for (const g of goals) {
+    if (!g.reachedOn || g.reachedOn < since || g.target == null) continue
+    const value = g.goal.metric === 'e1rm' ? formatKg(g.target) : g.goal.metric === 'reps' ? `${g.target} reps` : `${g.target} s`
+    wins.push({
+      id: `goal:${g.goal.id}:${g.target}`,
+      date: g.reachedOn,
+      kind: 'lift',
+      title: `Goal reached: ${g.goal.label}`,
+      detail: `${value}${g.goal.metric === 'e1rm' ? ' estimated one-rep max' : ''}, before the ${new Date(`${g.goal.deadline}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} deadline`
+    })
   }
 
   // Habits that became formed.

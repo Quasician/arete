@@ -43,6 +43,8 @@ export interface LiftPoint {
   /** Best estimated one-rep max that day, in kg, or null for bodyweight work. */
   e1rmKg: number | null
   bestReps: number
+  /** Longest timed set that day, in seconds, or null. */
+  bestSeconds: number | null
 }
 
 export interface LiftHistory {
@@ -64,7 +66,9 @@ export function liftHistories(activities: Activity[]): LiftHistory[] {
         date: a.date,
         e1rmKg:
           lift.bestE1rmKg == null ? (prev?.e1rmKg ?? null) : Math.max(lift.bestE1rmKg, prev?.e1rmKg ?? 0),
-        bestReps: Math.max(lift.bestReps, prev?.bestReps ?? 0)
+        bestReps: Math.max(lift.bestReps, prev?.bestReps ?? 0),
+        bestSeconds:
+          lift.bestSeconds == null ? (prev?.bestSeconds ?? null) : Math.max(lift.bestSeconds, prev?.bestSeconds ?? 0)
       })
       byName.set(lift.name, days)
     }

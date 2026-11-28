@@ -10,6 +10,7 @@ import { WeightPage } from './pages/WeightPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProgressPage } from './pages/ProgressPage'
 import { HabitsPage } from './pages/HabitsPage'
+import { GoalsPage } from './pages/GoalsPage'
 import icon from './assets/icon.png'
 import { useThemeController } from './theme'
 
@@ -20,6 +21,7 @@ const NAV: { page: Page; label: string }[] = [
   { page: 'food', label: 'Food' },
   { page: 'weight', label: 'Weight' },
   { page: 'progress', label: 'Progress' },
+  { page: 'goals', label: 'Goals' },
   { page: 'settings', label: 'Settings' }
 ]
 
@@ -56,6 +58,7 @@ export function App() {
         {page === 'food' && <FoodPage />}
         {page === 'weight' && <WeightPage />}
         {page === 'progress' && <ProgressPage />}
+        {page === 'goals' && <GoalsPage />}
         {page === 'settings' && <SettingsPage />}
       </main>
     </div>

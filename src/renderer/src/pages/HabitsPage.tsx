@@ -13,6 +13,8 @@ import {
   type HabitStatus
 } from '@shared/habits'
 import { defaultMinimum } from '@shared/todoistHabits'
+import { goalProgress } from '@shared/goals'
+import { liftHistories } from '@shared/progress'
 import { weeklyReview, type WeeklyReview } from '@shared/review'
 import { findWins } from '@shared/wins'
 import { ACTIVITY_KINDS, KIND_LABELS, type ActivityKind, type PublicSettings } from '@shared/types'
@@ -341,8 +343,10 @@ function WinsCard({
 }) {
   const wins = useMemo(() => {
     const trend = morningTrend(weights, TREND_DAYS).trend
-    return findWins(activities, trend, statuses, (kg) => formatWeight(kg, settings.units), addDays(today, -30))
-  }, [weights, activities, statuses, settings.units, today])
+    const histories = liftHistories(activities)
+    const goals = settings.liftGoals.map((g) => goalProgress(g, histories, today, settings.units))
+    return findWins(activities, trend, statuses, (kg) => formatWeight(kg, settings.units), addDays(today, -30), goals)
+  }, [weights, activities, statuses, settings.units, settings.liftGoals, today])
   return (
     <section className="card">
       <h2>Recent wins</h2>

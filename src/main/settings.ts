@@ -6,6 +6,7 @@ import path from 'node:path'
 import { safeStorage } from 'electron'
 import { emptyPlan } from '../shared/logic.ts'
 import { validHabit, type Habit } from '../shared/habits.ts'
+import { validGoal, type LiftGoal } from '../shared/goals.ts'
 import {
   ACTIVITY_KINDS,
   type AgeGroup,
@@ -34,6 +35,7 @@ interface StoredSettings {
   habits: Habit[]
   recoveryUntil: string | null
   habitTasks: boolean
+  liftGoals: LiftGoal[]
   /** Ids of wins already announced with a notification. */
   notifiedWins: string[]
   /** Monday of the last week whose review was put in Todoist. */
@@ -55,6 +57,7 @@ const DEFAULTS: StoredSettings = {
   habits: [],
   recoveryUntil: null,
   habitTasks: true,
+  liftGoals: [],
   notifiedWins: [],
   lastReviewWeek: null,
   plan: emptyPlan(),
@@ -88,6 +91,10 @@ function validHabits(h: unknown): h is Habit[] {
     h.every((x) => validHabit(x) && ACTIVITY_KINDS.includes((x as Habit).kind)) &&
     new Set(h.map((x) => (x as Habit).id)).size === h.length
   )
+}
+
+function validGoals(g: unknown): g is LiftGoal[] {
+  return Array.isArray(g) && g.length <= 20 && g.every(validGoal) && new Set(g.map((x) => (x as LiftGoal).id)).size === g.length
 }
 
 function validDateOrNull(d: unknown): d is string | null {
@@ -142,6 +149,7 @@ export class Settings {
         habits: validHabits(parsed.habits) ? parsed.habits : [],
         recoveryUntil: validDateOrNull(parsed.recoveryUntil) ? (parsed.recoveryUntil ?? null) : null,
         habitTasks: parsed.habitTasks !== false,
+        liftGoals: validGoals(parsed.liftGoals) ? parsed.liftGoals : [],
         notifiedWins: Array.isArray(parsed.notifiedWins) ? parsed.notifiedWins.filter((x) => typeof x === 'string').slice(-300) : [],
         lastReviewWeek: validDateOrNull(parsed.lastReviewWeek) ? (parsed.lastReviewWeek ?? null) : null,
         plan: validPlan(parsed.plan) ? parsed.plan : emptyPlan(),
@@ -190,6 +198,7 @@ export class Settings {
       habits: this.data.habits,
       recoveryUntil: this.data.recoveryUntil,
       habitTasks: this.data.habitTasks,
+      liftGoals: this.data.liftGoals,
       plan: this.data.plan,
       program: this.data.program,
       secrets,
@@ -239,6 +248,10 @@ export class Settings {
       if (typeof patch.habitTasks !== 'boolean') throw new Error('Invalid Todoist setting')
       this.data.habitTasks = patch.habitTasks
     }
+    if (patch.liftGoals !== undefined) {
+      if (!validGoals(patch.liftGoals)) throw new Error('Invalid goals')
+      this.data.liftGoals = patch.liftGoals
+    }
     if (patch.plan !== undefined) {
       if (!validPlan(patch.plan)) throw new Error('Invalid weekly plan')
       this.data.plan = patch.plan
@@ -282,6 +295,9 @@ export class Settings {
   }
   get habitTasks() {
     return this.data.habitTasks
+  }
+  get liftGoals() {
+    return this.data.liftGoals
   }
   wasNotified(id: string): boolean {
     return this.data.notifiedWins.includes(id)

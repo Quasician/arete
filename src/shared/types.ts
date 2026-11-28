@@ -1,5 +1,6 @@
 // Types shared by the main process, the preload bridge and the window.
 import type { Habit } from './habits.ts'
+import type { LiftGoal } from './goals.ts'
 
 export const ACTIVITY_KINDS = [
   'lift',
@@ -71,6 +72,8 @@ export interface LiftSummary {
   topWeightKg: number | null
   /** Most reps in a single working set. */
   bestReps: number
+  /** Longest timed set in seconds (holds, hangs, planks), if any. */
+  bestSeconds?: number
 }
 
 export interface ActivityDetail {
@@ -84,6 +87,8 @@ export interface ActivityDetail {
   volumeKg?: number
   /** Per-exercise bests, for strength charts. */
   lifts?: LiftSummary[]
+  /** Which version of the per-exercise detail this was imported with. */
+  liftsVersion?: number
 }
 
 export interface NewActivity {
@@ -195,6 +200,8 @@ export interface PublicSettings {
   recoveryUntil: string | null
   /** Take habits from @habit tasks in Todoist and keep them in step. Needs a Todoist token. */
   habitTasks: boolean
+  /** Strength goals, read from Hevy. */
+  liftGoals: LiftGoal[]
   plan: WeeklyPlan
   program: TrainingProgram | null
   /** Which keys are saved. The keys themselves never leave the main process. */
@@ -214,6 +221,7 @@ export interface SettingsPatch {
   habits?: Habit[]
   recoveryUntil?: string | null
   habitTasks?: boolean
+  liftGoals?: LiftGoal[]
   plan?: WeeklyPlan
   program?: TrainingProgram | null
 }

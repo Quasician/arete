@@ -3,6 +3,8 @@ import { Notification } from 'electron'
 import { addDays, morningTrend, toLocalDate, KG_PER_LB } from '../shared/logic.ts'
 import { habitStatus } from '../shared/habits.ts'
 import { findWins } from '../shared/wins.ts'
+import { goalProgress } from '../shared/goals.ts'
+import { liftHistories } from '../shared/progress.ts'
 import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 
@@ -15,7 +17,9 @@ export function announceWins(settings: Settings, repo: Repo): void {
   const statuses = settings.habits.filter((h) => !h.queued).map((h) => habitStatus(h, activities, today))
   const units = settings.public().units
   const fmt = (kg: number) => (units === 'lb' ? `${(kg / KG_PER_LB).toFixed(1)} lb` : `${kg.toFixed(1)} kg`)
-  const fresh = findWins(activities, trend, statuses, fmt, addDays(today, -1)).filter((w) => !settings.wasNotified(w.id))
+  const histories = liftHistories(activities)
+  const goals = settings.liftGoals.map((g) => goalProgress(g, histories, today, units))
+  const fresh = findWins(activities, trend, statuses, fmt, addDays(today, -1), goals).filter((w) => !settings.wasNotified(w.id))
   for (const w of fresh.slice(0, 3)) new Notification({ title: w.title, body: w.detail, silent: true }).show()
   settings.markNotified(fresh.map((w) => w.id))
 }

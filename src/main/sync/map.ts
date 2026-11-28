@@ -21,8 +21,12 @@ export interface ActivityRow {
 export interface HevySet {
   weight_kg?: number | null
   reps?: number | null
+  duration_seconds?: number | null
   type?: string | null
 }
+
+/** Bumped when per-exercise detail gains fields, so older imports are re-read once. */
+export const HEVY_DETAIL_VERSION = 2
 
 export interface HevyWorkout {
   id: string
@@ -58,6 +62,7 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
       const weight = s.weight_kg ?? 0
       if (weight && reps) volumeKg += weight * reps
       lift.bestReps = Math.max(lift.bestReps, reps)
+      if (s.duration_seconds && s.duration_seconds > 0) lift.bestSeconds = Math.max(lift.bestSeconds ?? 0, Math.round(s.duration_seconds))
       if (weight > 0) {
         lift.topWeightKg = Math.max(lift.topWeightKg ?? 0, weight)
         const e1rm = estimateOneRepMax(weight, reps)
@@ -75,7 +80,7 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
     title: w.title ?? null,
     durationSec: end && !isNaN(end.getTime()) ? Math.round((end.getTime() - start.getTime()) / 1000) : null,
     distanceM: null,
-    detail: { exercises: exercises.length, sets, volumeKg: Math.round(volumeKg), lifts }
+    detail: { exercises: exercises.length, sets, volumeKg: Math.round(volumeKg), lifts, liftsVersion: HEVY_DETAIL_VERSION }
   }
 }
 

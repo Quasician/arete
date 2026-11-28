@@ -16,7 +16,7 @@ import type {
   Portion,
   WeightEntry
 } from '../shared/types.ts'
-import type { ActivityRow } from './sync/map.ts'
+import { HEVY_DETAIL_VERSION, type ActivityRow } from './sync/map.ts'
 import type { WithingsWeight } from './importers/withings.ts'
 
 type ActivityRecord = typeof activities.$inferSelect
@@ -209,14 +209,14 @@ export class Repo {
     return row?.date ?? null
   }
 
-  /** True if some Hevy workouts were imported before per-exercise detail was stored. */
+  /** True if some Hevy workouts were imported before the current per-exercise detail was stored. */
   hevyNeedsBackfill(): boolean {
     return this.db
       .select({ detail: activities.detail })
       .from(activities)
       .where(eq(activities.source, 'hevy'))
       .all()
-      .some((r) => !('lifts' in parseDetail(r.detail)))
+      .some((r) => (parseDetail(r.detail).liftsVersion ?? 0) < HEVY_DETAIL_VERSION)
   }
 
   deleteActivity(id: number): void {

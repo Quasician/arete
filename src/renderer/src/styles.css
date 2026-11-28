@@ -39,6 +39,9 @@
   --kind-art: #ffb37a;
   --kind-music: #8fe3c8;
   --kind-piano: #e2d48a;
+  --body-base: rgba(255, 255, 255, 0.1);
+  --body-idle: rgba(255, 255, 255, 0.05);
+  --body-skin: rgba(255, 255, 255, 0.035);
   --radius: 12px;
   color-scheme: dark;
 }
@@ -88,6 +91,9 @@
   --kind-art: #b8601a;
   --kind-music: #1f8a6a;
   --kind-piano: #8a7418;
+  --body-base: rgba(30, 40, 80, 0.12);
+  --body-idle: rgba(30, 40, 80, 0.06);
+  --body-skin: rgba(30, 40, 80, 0.04);
   color-scheme: light;
 }
 
@@ -1290,4 +1296,199 @@ input:disabled,
 select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* ---------- goals ---------- */
+
+.goals-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .goals-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.body-card {
+  position: sticky;
+  top: 16px;
+}
+.body-map {
+  width: 100%;
+  max-height: 72vh;
+  display: block;
+  margin: 4px auto 0;
+}
+.body-map .silhouette > * {
+  fill: var(--body-skin);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.body-map .muscle > * {
+  stroke: var(--panel);
+  stroke-width: 1.5;
+  transition: fill 400ms ease, stroke 200ms ease;
+}
+.body-map .muscle.tracked {
+  cursor: help;
+}
+.body-map .muscle.lit > * {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.body-map .muscle.reached > * {
+  filter: url(#reached-glow);
+}
+.body-caption {
+  fill: var(--subtle);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.body-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--subtle);
+  margin-top: 8px;
+}
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-left: 10px;
+}
+.swatch.idle {
+  background: var(--body-idle);
+  border: 1px solid var(--line);
+}
+.swatch.low {
+  background: color-mix(in srgb, var(--ok) 25%, var(--body-base));
+}
+.swatch.high {
+  background: var(--ok);
+}
+.goal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.goal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  transition: background 200ms ease;
+}
+.goal-row.lit,
+.goal-row.selected {
+  background: var(--hover);
+}
+.goal-main {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 12px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.goal-edit {
+  padding-top: 14px;
+  font-size: 12px;
+}
+.goal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.goal-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--subtle);
+}
+.goal-status.reached,
+.goal-status.ahead {
+  color: var(--ok);
+  border-color: var(--ok-line);
+}
+.goal-status.on-pace {
+  color: var(--primary);
+  border-color: var(--primary-line);
+}
+.goal-status.behind,
+.goal-status.no-exercise {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.goal-numbers {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.goal-numbers .now,
+.goal-numbers .target {
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.goal-numbers .target {
+  color: var(--ok);
+}
+.goal-numbers .arrow {
+  color: var(--subtle);
+}
+.goal-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+.goal-bar > div {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--ok));
+}
+.goal-bar > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.55;
+}
+.region-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.region-picks legend {
+  font-size: 12px;
+  color: var(--subtle);
+  padding: 0 4px;
+}
+
+.setup-table th {
+  text-align: left;
+}
+.setup-table {
+  margin: 12px 0 14px;
 }
