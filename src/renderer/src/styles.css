@@ -34,6 +34,11 @@
   --kind-hike: #7fd1a6;
   --kind-run: #ff9f7a;
   --kind-walk: #9fd6e8;
+  --kind-stretch: #e8a6c8;
+  --kind-meditate: #b4b8ff;
+  --kind-art: #ffb37a;
+  --kind-music: #8fe3c8;
+  --kind-piano: #e2d48a;
   --radius: 12px;
   color-scheme: dark;
 }
@@ -78,6 +83,11 @@
   --kind-hike: #2f8a5c;
   --kind-run: #c8582c;
   --kind-walk: #22809e;
+  --kind-stretch: #b0477d;
+  --kind-meditate: #4b52c4;
+  --kind-art: #b8601a;
+  --kind-music: #1f8a6a;
+  --kind-piano: #8a7418;
   color-scheme: light;
 }
 
@@ -639,6 +649,21 @@ label {
 .kind-other {
   color: var(--subtle);
 }
+.kind-stretch {
+  color: var(--kind-stretch);
+}
+.kind-meditate {
+  color: var(--kind-meditate);
+}
+.kind-art {
+  color: var(--kind-art);
+}
+.kind-music {
+  color: var(--kind-music);
+}
+.kind-piano {
+  color: var(--kind-piano);
+}
 .history-day h3 {
   margin-top: 18px;
 }
@@ -989,11 +1014,171 @@ details.card[open] > summary {
   font-size: 12px;
 }
 .strength-bar {
+  position: relative;
   height: 8px;
   border-radius: 4px;
   background: var(--track);
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+.strength-bar .tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.strength-bar .tick.goal {
+  width: 2px;
+  background: var(--accent-line);
+}
+.strength-pct {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.to-formed {
+  margin: 0 0 8px;
+}
+.stage {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--subtle);
+  white-space: nowrap;
+}
+.stage-starting {
+  color: var(--subtle);
+}
+.stage-building {
+  color: var(--primary);
+  border-color: var(--primary-line);
+}
+.stage-sticking {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.stage-formed {
+  color: var(--ok);
+  border-color: var(--ok-line);
+  background: var(--ok-soft, transparent);
+}
+.stage-attention {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.stage-upcoming,
+.stage-queued {
+  border-style: dashed;
+}
+.stage-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 4px 0 6px;
+}
+.stage-key .small {
+  margin-right: 8px;
+}
+.celebrate {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ok-line);
+  background: linear-gradient(120deg, var(--accent-soft), transparent 70%), var(--panel);
+  animation: celebrate-in 700ms ease-out both;
+}
+.celebrate h2 {
+  margin: 0 0 4px;
+}
+.celebrate p {
+  margin: 0;
+  color: var(--subtle);
+  line-height: 1.5;
+}
+.celebrate-mark,
+.shelf-mark {
+  color: var(--accent);
+  font-size: 34px;
+  line-height: 1;
+  text-shadow: 0 0 18px var(--accent-line);
+}
+.celebrate-mark {
+  animation: celebrate-glow 2.4s ease-in-out infinite alternate;
+}
+@keyframes celebrate-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+}
+@keyframes celebrate-glow {
+  to {
+    text-shadow: 0 0 30px var(--accent);
+    transform: rotate(18deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebrate,
+  .celebrate-mark {
+    animation: none;
+  }
+}
+.shelf {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.shelf li {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.shelf li .shelf-mark {
+  font-size: 22px;
+}
+.shelf li.attention .shelf-mark {
+  opacity: 0.5;
+  text-shadow: none;
+}
+.new-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.queue {
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+.queue li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.queue-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ready-line {
+  color: var(--ok);
+  font-weight: 600;
+  margin: 0;
 }
 .strength-bar > div {
   height: 100%;
@@ -1099,4 +1284,10 @@ details.card[open] > summary {
 .dot.pending {
   background: transparent;
   border: 2px dashed var(--subtle);
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }

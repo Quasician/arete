@@ -1,6 +1,6 @@
 // Pure calculations behind the Progress page.
 import { addDays, weekStartOf } from './logic.ts'
-import type { Activity, AgeGroup, RowingTrainingLevel, TypicalMinutes } from './types.ts'
+import { isTraining, type Activity, type AgeGroup, type RowingTrainingLevel, type TypicalMinutes } from './types.ts'
 
 // ---------- weekly active minutes ----------
 
@@ -25,7 +25,7 @@ export function weeklyMinutes(activities: Activity[], typical: TypicalMinutes, w
     const end = addDays(weekStart, 6)
     const week: WeekMinutes = { weekStart, measured: 0, estimated: 0, uncounted: 0 }
     for (const a of activities) {
-      if (a.date < weekStart || a.date > end) continue
+      if (a.date < weekStart || a.date > end || !isTraining(a.kind)) continue
       if (a.durationSec) week.measured += a.durationSec / 60
       else if (typical[a.kind]) week.estimated += typical[a.kind]!
       else week.uncounted++

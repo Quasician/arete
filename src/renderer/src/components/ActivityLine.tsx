@@ -3,7 +3,8 @@ import { KIND_LABELS, type Activity } from '@shared/types'
 import { api, useInvalidate } from '../api'
 import { formatDistance } from '../format'
 
-const SOURCE_LABEL = { manual: 'Logged', hevy: 'Hevy', concept2: 'Concept2' } as const
+const SOURCE_LABEL = { manual: 'Logged',
+  habit: 'Habit', hevy: 'Hevy', concept2: 'Concept2' } as const
 
 export function ActivityLine({ activity: a, compact = false }: { activity: Activity; compact?: boolean }) {
   const invalidate = useInvalidate()

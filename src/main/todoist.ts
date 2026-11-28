@@ -1,5 +1,6 @@
-// A small Todoist API v1 client: just what Arete needs to put habits and the
-// weekly review on your Todoist list, where Praxis picks them up.
+// A small Todoist API v1 client: just what Arete needs to read @habit tasks,
+// tick them off, and put the weekly review on your list, where Praxis picks it up.
+import type { TodoistHabitTask } from '../shared/todoistHabits.ts'
 
 /** Overridable for tests, like Praxis's TODOIST_BASE. */
 const BASE = process.env['ARETE_TODOIST_BASE'] || 'https://api.todoist.com/api/v1'
@@ -47,12 +48,12 @@ export class Todoist {
   }
 
   /** Follows next_cursor pages. */
-  private async all<T>(path: string): Promise<T[]> {
+  private async all<T>(path: string, limit = 200): Promise<T[]> {
     const out: T[] = []
     let cursor: string | null = null
     for (let page = 0; page < 50; page++) {
       const sep = path.includes('?') ? '&' : '?'
-      const data: unknown = await this.request('GET', `${path}${sep}limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      const data: unknown = await this.request('GET', `${path}${sep}limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
       if (Array.isArray(data)) return [...out, ...data]
       const p = data as { results?: T[]; items?: T[]; next_cursor?: string | null }
       out.push(...(p.results ?? p.items ?? []))
@@ -62,27 +63,47 @@ export class Todoist {
     return out
   }
 
-  async projectId(name: string): Promise<string> {
-    const projects = await this.all<{ id: string; name: string; is_deleted?: boolean; is_archived?: boolean }>('/projects')
-    const found = projects.find((p) => p.name === name && !p.is_deleted && !p.is_archived)
-    if (found) return found.id
-    const created = await this.request<{ id: string }>('POST', '/projects', { name })
-    return created.id
+  /** Open tasks labelled @habit. */
+  habitTasks(): Promise<TodoistHabitTask[]> {
+    return this.all<TodoistHabitTask & { checked?: boolean; is_deleted?: boolean }>(
+      `/tasks/filter?query=${encodeURIComponent('@habit')}`
+    ).then((ts) => ts.filter((t) => !t.checked && !t.is_deleted))
+  }
+
+  /**
+   * Every completion since a moment, recurring tasks included: Todoist's
+   * completed list leaves those out, but its activity log has each tick.
+   */
+  async completions(since: Date): Promise<{ taskId: string; at: string }[]> {
+    const events = await this.all<{ object_id?: string; event_date?: string }>(
+      `/activities?object_type=item&event_type=completed&date_from=${encodeURIComponent(since.toISOString())}`,
+      100
+    )
+    return events
+      .filter((e) => e.object_id && e.event_date)
+      .map((e) => ({ taskId: String(e.object_id), at: e.event_date! }))
   }
 
   createTask(task: {
     content: string
     description?: string
-    projectId: string
     dueString: string
     durationMinutes?: number
+    labels?: string[]
   }): Promise<TodoistTask> {
     return this.request<TodoistTask>('POST', '/tasks', {
       content: task.content,
       description: task.description ?? '',
-      project_id: task.projectId,
       due_string: task.dueString,
+      ...(task.labels ? { labels: task.labels } : {}),
       ...(task.durationMinutes ? { duration: task.durationMinutes, duration_unit: 'minute' } : {})
+    })
+  }
+
+  async updateTask(id: string, patch: { dueString?: string; durationMinutes?: number }): Promise<void> {
+    await this.request('POST', `/tasks/${encodeURIComponent(id)}`, {
+      ...(patch.dueString ? { due_string: patch.dueString } : {}),
+      ...(patch.durationMinutes ? { duration: patch.durationMinutes, duration_unit: 'minute' } : {})
     })
   }
 
@@ -96,13 +117,5 @@ export class Todoist {
     } catch (err) {
       if (!(err instanceof TodoistError && err.status === 404)) throw err
     }
-  }
-
-  /** Ids of tasks completed between two moments. */
-  async completedIds(since: Date, until: Date): Promise<Set<string>> {
-    const tasks = await this.all<TodoistTask & { task_id?: string }>(
-      `/tasks/completed/by_completion_date?since=${encodeURIComponent(since.toISOString())}&until=${encodeURIComponent(until.toISOString())}`
-    )
-    return new Set(tasks.map((t) => String(t.task_id ?? t.id)))
   }
 }

@@ -96,3 +96,92 @@ test('wins include lift records, habit milestones and new low weights', () => {
   assert.ok(wins.some((w) => w.id === 'habit:h1:10'))
   assert.ok(wins.some((w) => w.id === 'weight:80'))
 })
+
+// ---------- stages, formed and the queue ----------
+
+import { ATTENTION_STRENGTH, FORMED_STRENGTH, queueAdvice, repetitionsBetween, setActive } from '../src/shared/habits.ts'
+
+const daily: Habit = { ...row, id: 'daily', name: 'Meditation', kind: 'meditate', fullMinutes: 10, minimumMinutes: 2 }
+const every = (from: string, n: number, kind: Activity['kind'] = 'meditate') =>
+  Array.from({ length: n }, (_, i) => act(addDays(from, i), kind, null))
+
+test('stages move from starting to formed', () => {
+  assert.equal(habitStatus(daily, every('2026-11-01', 3), '2026-11-04').stage, 'starting')
+  assert.equal(habitStatus(daily, every('2026-11-01', 15), '2026-11-16').stage, 'building')
+  assert.equal(habitStatus(daily, every('2026-11-01', 30), '2026-12-01').stage, 'sticking')
+  const s = habitStatus(daily, every('2026-11-01', 60), addDays('2026-11-01', 60))
+  assert.equal(s.stage, 'formed')
+  // 90% strength takes 51 repetitions in a row.
+  assert.equal(repetitionsBetween(0, FORMED_STRENGTH), 51)
+  assert.equal(s.formedOn, addDays('2026-11-01', 50))
+  assert.equal(s.toFormed, 0)
+})
+
+test('formed needs steady weeks, not just a count', () => {
+  // Strong from a long streak, but most of the last four weeks missed: never formed in that run.
+  const acts = [...every('2026-11-01', 45), ...every(addDays('2026-11-01', 45), 30).filter((_, i) => i % 3 === 0)]
+  const s = habitStatus(daily, acts, addDays('2026-11-01', 75))
+  assert.ok(s.repetitions >= 51)
+  assert.equal(s.formedOn, null)
+  assert.notEqual(s.stage, 'formed')
+})
+
+test('a formed habit that slips stays formed but needs attention', () => {
+  const s = habitStatus(daily, every('2026-11-01', 60), addDays('2026-11-01', 66))
+  assert.ok(s.formedOn)
+  assert.equal(s.stage, 'formed')
+  assert.ok(s.strength < ATTENTION_STRENGTH)
+  assert.equal(s.needsAttention, true)
+})
+
+test('pausing keeps history; the paused days are not misses', () => {
+  const acts = every('2026-11-01', 10)
+  const paused = setActive(daily, false, '2026-11-11')
+  const s = habitStatus(paused, acts, '2026-11-25')
+  assert.equal(s.repetitions, 10)
+  assert.equal(s.missStreak, 0)
+  const resumed = setActive(paused, true, '2026-11-20')
+  assert.deepEqual(resumed.pauses, [{ from: '2026-11-11', to: '2026-11-20' }])
+  const r = habitStatus(resumed, acts, '2026-11-22')
+  assert.equal(r.repetitions, 10)
+  assert.equal(r.missStreak, 2) // 20th and 21st missed after resuming
+})
+
+test('the queue waits until the newest habit has held two weeks at 80%', () => {
+  const walk = { ...daily, id: 'w', name: 'Daily walk', kind: 'walk' as const, startDate: '2026-11-01' }
+  const med = { ...daily, startDate: '2026-11-20' }
+  const statusesAt = (today: string, acts: Activity[]) => [habitStatus(walk, acts, today), habitStatus(med, acts, today)]
+  const walks = every('2026-11-01', 40, 'walk')
+  // Meditation is the newest; one week in, not yet.
+  let advice = queueAdvice(statusesAt('2026-11-27', [...walks, ...every('2026-11-20', 7)]), '2026-11-27')
+  assert.equal(advice.ready, false)
+  assert.equal(advice.newest?.habit.name, 'Meditation')
+  // Two weeks in, kept 10 of 14: not yet.
+  const spotty = every('2026-11-20', 14).filter((_, i) => i % 4 !== 1)
+  advice = queueAdvice(statusesAt('2026-12-04', [...walks, ...spotty]), '2026-12-04')
+  assert.equal(advice.ready, false)
+  assert.match(advice.reason, /10 of 14/)
+  // Kept 13 of 14: ready.
+  advice = queueAdvice(statusesAt('2026-12-04', [...walks, ...every('2026-11-20', 14).filter((_, i) => i !== 5)]), '2026-12-04')
+  assert.equal(advice.ready, true)
+  // A habit that starts in the future holds the queue.
+  const art = { ...daily, id: 'a', name: 'Art', kind: 'art' as const, startDate: '2027-01-05' }
+  advice = queueAdvice([habitStatus(art, [], '2026-12-04'), ...statusesAt('2026-12-04', walks)], '2026-12-04')
+  assert.equal(advice.ready, false)
+  assert.match(advice.reason, /Art starts Jan 5/)
+})
+
+test('formed habits are announced as wins', () => {
+  const s = habitStatus(daily, every('2026-11-01', 60), addDays('2026-11-01', 60))
+  const wins = findWins([], [], [s], (kg) => `${kg} kg`, '2026-11-01')
+  assert.ok(wins.some((w) => w.id === 'formed:daily' && w.title === 'Meditation is formed'))
+})
+
+test('a habit that starts later has no misses and no stray days', () => {
+  const art = { ...daily, id: 'a', name: 'Art', kind: 'art' as const, days: [1, 4], startDate: '2027-01-05' }
+  const s = habitStatus(art, [], '2026-11-27')
+  assert.equal(s.stage, 'upcoming')
+  assert.equal(s.missStreak, 0)
+  assert.equal(s.days.length, 28)
+  assert.ok(s.days.every((d) => d.date <= '2026-11-27' && !d.scheduled))
+})

@@ -12,7 +12,7 @@ export function announceWins(settings: Settings, repo: Repo): void {
   const today = toLocalDate(new Date())
   const activities = repo.allActivities()
   const trend = morningTrend(repo.listWeights('1900-01-01', today), 7).trend
-  const statuses = settings.habits.filter((h) => h.active).map((h) => habitStatus(h, activities, today))
+  const statuses = settings.habits.filter((h) => !h.queued).map((h) => habitStatus(h, activities, today))
   const units = settings.public().units
   const fmt = (kg: number) => (units === 'lb' ? `${(kg / KG_PER_LB).toFixed(1)} lb` : `${kg.toFixed(1)} kg`)
   const fresh = findWins(activities, trend, statuses, fmt, addDays(today, -1)).filter((w) => !settings.wasNotified(w.id))

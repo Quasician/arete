@@ -1,31 +1,25 @@
-// Keeps habits, Todoist and Arete in step:
-// - each scheduled habit gets a Todoist task for today, at its cue time, so Praxis shows it;
-// - doing the habit (synced or logged in Arete) closes the task;
-// - ticking the task in Todoist or Praxis logs the habit in Arete;
-// - undone tasks from earlier days are tidied away instead of piling up as overdue;
-// - on Sundays, the weekly review goes in Todoist too.
+// Keeps habits, Todoist and Arete in step. Todoist is where habits live:
+// - every task labelled @habit becomes a habit (recurring ones are active,
+//   undated ones wait in the queue); Arete never makes daily copies;
+// - ticking a habit's task in Todoist or Praxis logs it in Arete;
+// - doing the habit (synced from Hevy or Concept2, or ticked in Arete) closes
+//   the task, which moves it to its next date;
+// - a habit made in Arete gets one recurring @habit task in the Inbox;
+// - on Sundays, the weekly review goes in the Inbox.
 import { addDays, toLocalDate, weekStartOf } from '../shared/logic.ts'
-import { doneLevel, isScheduled, type Habit } from '../shared/habits.ts'
+import { doneLevel, type Habit } from '../shared/habits.ts'
+import { HABIT_LABEL, dueStringFor, mergeTodoistHabits, taskDueOn } from '../shared/todoistHabits.ts'
 import { reviewText, weeklyReview } from '../shared/review.ts'
 import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 import { Todoist } from './todoist.ts'
 
-const PROJECT = 'Arete habits'
-
 export function inRecovery(settings: Settings, today: string): boolean {
   return !!settings.recoveryUntil && today <= settings.recoveryUntil
 }
 
-export function habitTaskTitle(h: Habit, recovery: boolean): string {
-  return recovery ? `${h.name}: ${h.minimumMinutes} min (recovery week)` : `${h.name}: ${h.fullMinutes} min (minimum ${h.minimumMinutes})`
-}
-
-function describe(h: Habit, recovery: boolean): string {
-  const plan = `${h.cue}${h.time ? `, around ${h.time}` : ''}.`
-  return recovery
-    ? `${plan} Recovery week: the ${h.minimumMinutes}-minute version is the whole goal. Logged by Arete.`
-    : `${plan} The ${h.minimumMinutes}-minute minimum still counts. Logged by Arete.`
+function linked(h: Habit): boolean {
+  return (h.todoistTaskIds ?? []).length > 0
 }
 
 let running: Promise<string | null> | null = null
@@ -38,62 +32,65 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
     if (!token || !settings.habitTasks) return null
     const td = new Todoist(token)
     const today = toLocalDate(now)
-    const habits = settings.habits.filter((h) => h.active)
-    const activities = repo.allActivities()
     try {
-      // 1. Ticked in Todoist or Praxis since yesterday: log it in Arete.
-      const open = repo.openHabitTasks()
-      if (open.length) {
-        const since = new Date(now.getTime() - 2 * 86_400_000)
-        const done = await td.completedIds(since, new Date(now.getTime() + 60_000))
-        for (const row of open) {
-          if (!done.has(row.taskId)) continue
-          const h = settings.habits.find((x) => x.id === row.habitId)
-          if (h && doneLevel(h, row.date, activities) === 'none') {
-            const minutes = inRecovery(settings, row.date) ? h.minimumMinutes : h.fullMinutes
-            repo.addActivity({ kind: h.kind, date: row.date, title: h.name, durationSec: minutes * 60 })
-          }
-          repo.saveHabitTask(row.habitId, row.date, row.taskId, 'closed')
-        }
-      }
-      const fresh = repo.allActivities()
+      // 1. Habits from @habit tasks. Read and write in one step so edits made in
+      //    the window meanwhile aren't overwritten.
+      const tasks = await td.habitTasks()
+      const merged = mergeTodoistHabits(settings.habits, tasks, today)
+      if (JSON.stringify(merged.habits) !== JSON.stringify(settings.habits)) settings.update({ habits: merged.habits })
 
-      // 2. Done in Arete: close the task. Left undone on an earlier day: remove it.
+      // 2. Tidy away the one-off daily tasks earlier versions made.
       for (const row of repo.openHabitTasks()) {
-        const h = settings.habits.find((x) => x.id === row.habitId)
-        if (h && doneLevel(h, row.date, fresh) !== 'none') {
-          await td.closeTask(row.taskId).catch(() => undefined)
-          repo.saveHabitTask(row.habitId, row.date, row.taskId, 'closed')
-        } else if (!h || row.date < today) {
-          await td.deleteTask(row.taskId)
-          repo.saveHabitTask(row.habitId, row.date, row.taskId, 'removed')
+        await td.deleteTask(row.taskId)
+        repo.saveHabitTask(row.habitId, row.date, row.taskId, 'removed')
+      }
+
+      // 3. Ticked in Todoist or Praxis: log it here.
+      const byTask = new Map<string, Habit>()
+      for (const h of settings.habits) for (const id of h.todoistTaskIds ?? []) byTask.set(id, h)
+      if (byTask.size) {
+        const done = await td.completions(new Date(now.getTime() - 3 * 86_400_000))
+        for (const c of done.sort((a, b) => a.at.localeCompare(b.at))) {
+          const h = byTask.get(c.taskId)
+          if (!h) continue
+          const date = toLocalDate(new Date(c.at))
+          if (date < h.startDate || date > today || repo.habitTask(h.id, date)) continue
+          if (doneLevel(h, date, repo.listActivities(date, date)) === 'none') {
+            const minutes = inRecovery(settings, date) ? h.minimumMinutes : h.fullMinutes
+            repo.addHabitCheckIn(h.kind, date, h.name, minutes)
+          }
+          repo.saveHabitTask(h.id, date, c.taskId, 'closed')
         }
       }
 
-      // 3. Today's habits that aren't done yet and have no task: create one.
-      const todo = habits.filter((h) => isScheduled(h, today) && !repo.habitTask(h.id, today) && doneLevel(h, today, fresh) === 'none')
-      if (todo.length) {
-        const projectId = await td.projectId(PROJECT)
-        const recovery = inRecovery(settings, today)
-        for (const h of todo) {
-          const task = await td.createTask({
-            content: habitTaskTitle(h, recovery),
-            description: describe(h, recovery),
-            projectId,
-            dueString: h.time ? `today at ${h.time}` : 'today',
-            durationMinutes: recovery ? h.minimumMinutes : h.fullMinutes
-          })
-          repo.saveHabitTask(h.id, today, task.id, 'open')
-        }
+      // 4. Done here (or synced from Hevy or Concept2): tick its task, which moves it on.
+      const todays = repo.listActivities(today, today)
+      for (const h of settings.habits.filter((x) => x.active && linked(x))) {
+        if (repo.habitTask(h.id, today) || doneLevel(h, today, todays) === 'none') continue
+        const task = taskDueOn(tasks, h.todoistTaskIds!, today)
+        if (!task) continue
+        await td.closeTask(task.id)
+        repo.saveHabitTask(h.id, today, task.id, 'closed')
       }
 
-      // 4. Sunday: last full week's review, once.
+      // 5. Habits made in Arete get one recurring task, so Praxis can plan around them.
+      for (const h of settings.habits.filter((x) => x.active && !x.queued && !linked(x) && x.days.length)) {
+        const task = await td.createTask({
+          content: h.name,
+          description: `${h.cue}. The ${h.minimumMinutes}-minute minimum still counts. Tracked in Arete.`,
+          dueString: dueStringFor(h.days, h.time, h.startDate > today ? h.startDate : undefined),
+          durationMinutes: h.fullMinutes,
+          labels: [HABIT_LABEL]
+        })
+        settings.update({ habits: settings.habits.map((x) => (x.id === h.id ? { ...x, todoistTaskIds: [task.id] } : x)) })
+      }
+
+      // 6. Sunday: last full week's review, once.
+      const habits = settings.habits.filter((h) => h.active)
       const thisWeek = weekStartOf(today)
-      const isSunday = addDays(thisWeek, 6) === today
-      if (isSunday && habits.length && settings.lastReviewWeek !== thisWeek) {
-        const review = weeklyReview(habits, fresh, thisWeek, today)
-        const projectId = await td.projectId(PROJECT)
-        await td.createTask({ content: 'Arete weekly review', description: reviewText(review), projectId, dueString: 'today' })
+      if (addDays(thisWeek, 6) === today && habits.length && settings.lastReviewWeek !== thisWeek) {
+        const review = weeklyReview(habits, repo.allActivities(), thisWeek, today)
+        await td.createTask({ content: 'Arete weekly review', description: reviewText(review), dueString: 'today' })
         settings.setLastReviewWeek(thisWeek)
       }
       return null
@@ -104,4 +101,42 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
     running = null
   })
   return running
+}
+
+/**
+ * Starts a queued habit: gives its Todoist task its days and time (or, for a
+ * habit with no task, just starts it here).
+ */
+export async function startQueuedHabit(
+  settings: Settings,
+  habitId: string,
+  plan: { days: number[]; time: string | null; startDate: string; fullMinutes: number }
+): Promise<void> {
+  const h = settings.habits.find((x) => x.id === habitId)
+  if (!h || !h.queued) throw new Error('That habit is not in the queue.')
+  const ids = h.todoistTaskIds ?? []
+  const token = settings.getSecret('todoist')
+  if (ids.length && token && settings.habitTasks) {
+    await new Todoist(token).updateTask(ids[0], {
+      dueString: dueStringFor(plan.days, plan.time, plan.startDate),
+      durationMinutes: plan.fullMinutes
+    })
+  }
+  settings.update({
+    habits: settings.habits.map((x) =>
+      x.id === habitId
+        ? {
+            ...x,
+            queued: false,
+            active: true,
+            days: [...plan.days].sort(),
+            time: plan.time,
+            startDate: plan.startDate,
+            fullMinutes: plan.fullMinutes,
+            minimumMinutes: Math.min(x.minimumMinutes, plan.fullMinutes),
+            pauses: []
+          }
+        : x
+    )
+  })
 }

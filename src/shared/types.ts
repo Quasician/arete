@@ -1,8 +1,29 @@
 // Types shared by the main process, the preload bridge and the window.
 import type { Habit } from './habits.ts'
 
-export const ACTIVITY_KINDS = ['lift', 'row', 'climb', 'hike', 'run', 'walk', 'other'] as const
+export const ACTIVITY_KINDS = [
+  'lift',
+  'row',
+  'climb',
+  'hike',
+  'run',
+  'walk',
+  'other',
+  'stretch',
+  'meditate',
+  'art',
+  'music',
+  'piano'
+] as const
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
+
+/** Physical training: the weekly plan, typical lengths and active minutes use these. */
+export const TRAINING_KINDS = ['lift', 'row', 'climb', 'hike', 'run', 'walk', 'other'] as const satisfies readonly ActivityKind[]
+
+/** Practices that count toward habits but not toward active minutes. */
+export function isTraining(kind: ActivityKind): boolean {
+  return (TRAINING_KINDS as readonly string[]).includes(kind)
+}
 
 export const KIND_LABELS: Record<ActivityKind, string> = {
   lift: 'Lift',
@@ -11,10 +32,16 @@ export const KIND_LABELS: Record<ActivityKind, string> = {
   hike: 'Hike',
   run: 'Run',
   walk: 'Walk',
-  other: 'Other'
+  other: 'Other',
+  stretch: 'Stretch',
+  meditate: 'Meditate',
+  art: 'Art',
+  music: 'Music',
+  piano: 'Piano'
 }
 
-export type ActivitySource = 'manual' | 'hevy' | 'concept2'
+/** habit: a check-in from a habit (ticked in Arete, Todoist or Praxis). */
+export type ActivitySource = 'manual' | 'habit' | 'hevy' | 'concept2'
 
 export interface Activity {
   id: number
@@ -166,7 +193,7 @@ export interface PublicSettings {
   habits: Habit[]
   /** While today is on or before this date, habits ask only for their minimum version. */
   recoveryUntil: string | null
-  /** Put each day's habits in Todoist (so Praxis shows them). Needs a Todoist token. */
+  /** Take habits from @habit tasks in Todoist and keep them in step. Needs a Todoist token. */
   habitTasks: boolean
   plan: WeeklyPlan
   program: TrainingProgram | null
@@ -268,8 +295,13 @@ export interface AreteApi {
   installUpdate(): Promise<void>
   onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
 
-  /** Logs a habit as done today (full or minimum version) and closes its Todoist task. */
+  /** Logs a habit as done today (full or minimum version) and ticks its Todoist task. */
   logHabit(habitId: string, version: 'full' | 'minimum'): Promise<Activity>
+  /** Starts a habit from the "Up next" queue, giving its Todoist task these days and time. */
+  startHabit(
+    habitId: string,
+    plan: { days: number[]; time: string | null; startDate: string; fullMinutes: number }
+  ): Promise<PublicSettings>
 
   syncNow(): Promise<SyncReport>
   onSynced(callback: (report: SyncReport) => void): () => void

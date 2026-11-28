@@ -8,7 +8,7 @@ import { readWithingsExport } from './importers/withings.ts'
 import { checkForUpdates, getUpdateStatus, installUpdate } from './updater.ts'
 import { applyOpenAtLogin } from './startup.ts'
 import { estimateMeal } from './estimate.ts'
-import { inRecovery, syncHabitTasks } from './habitSync.ts'
+import { inRecovery, startQueuedHabit, syncHabitTasks } from './habitSync.ts'
 import { announceWins } from './announce.ts'
 import { toLocalDate } from '../shared/logic.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
@@ -99,9 +99,28 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
     if (version !== 'full' && version !== 'minimum') throw new Error('Invalid version')
     const today = toLocalDate(new Date())
     const minutes = version === 'minimum' || inRecovery(settings, today) ? h.minimumMinutes : h.fullMinutes
-    const activity = repo.addActivity({ kind: h.kind, date: today, title: h.name, durationSec: minutes * 60 })
+    const activity = repo.addHabitCheckIn(h.kind, today, h.name, minutes)
     void runHabitSync(repo, settings, getWindow).then(() => announceWins(settings, repo))
     return activity
+  })
+
+  handle('startHabit', async (habitId: string, plan: { days: number[]; time: string | null; startDate: string; fullMinutes: number }) => {
+    if (
+      !plan ||
+      !Array.isArray(plan.days) ||
+      plan.days.length === 0 ||
+      !plan.days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6) ||
+      (plan.time !== null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(plan.time)) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(plan.startDate) ||
+      !Number.isInteger(plan.fullMinutes) ||
+      plan.fullMinutes < 1 ||
+      plan.fullMinutes > 600
+    ) {
+      throw new Error('Pick at least one day, and a length between 1 and 600 minutes.')
+    }
+    await startQueuedHabit(settings, habitId, plan)
+    void runHabitSync(repo, settings, getWindow)
+    return settings.public()
   })
 
   handle('syncNow', () => runSync(repo, settings, getWindow))
@@ -114,11 +133,11 @@ export async function runSync(
 ): Promise<SyncReport> {
   const report = await syncAll(settings, repo)
   const habitError = await runHabitSync(repo, settings, getWindow, false)
-  if (settings.getSecret('todoist') && settings.habitTasks && settings.habits.some((h) => h.active)) {
+  if (settings.getSecret('todoist') && settings.habitTasks) {
     report.results.todoist = {
       at: new Date().toISOString(),
       ok: !habitError,
-      message: habitError ?? 'Habits are up to date in Todoist'
+      message: habitError ?? 'Habits are in step with Todoist'
     }
   }
   try {
@@ -142,7 +161,7 @@ export async function runHabitSync(
   settings.recordSync('todoist', {
     at: new Date().toISOString(),
     ok: !error,
-    message: error ?? 'Habits are up to date in Todoist'
+    message: error ?? 'Habits are in step with Todoist'
   })
   if (notifyWindow) getWindow()?.webContents.send(SYNCED_EVENT, { results: {} })
   return error

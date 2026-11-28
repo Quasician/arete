@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toLocalDate } from '@shared/logic'
 import {
-  ACTIVITY_KINDS,
+  TRAINING_KINDS,
   KIND_LABELS,
   type ActivityKind,
   type AgeGroup,
@@ -182,7 +182,7 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
         <thead>
           <tr>
             <th />
-            {ACTIVITY_KINDS.map((k) => (
+            {TRAINING_KINDS.map((k) => (
               <th key={k}>{KIND_LABELS[k]}</th>
             ))}
           </tr>
@@ -191,7 +191,7 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
           {DAYS.map((day, i) => (
             <tr key={day}>
               <td>{day}</td>
-              {ACTIVITY_KINDS.map((k) => (
+              {TRAINING_KINDS.map((k) => (
                 <td key={k}>
                   <input
                     type="checkbox"
@@ -252,7 +252,7 @@ function ProgramCard({ program }: { program: TrainingProgram | null }) {
         <label>
           Type
           <select value={kind} onChange={(e) => setKind(e.target.value as ActivityKind)}>
-            {ACTIVITY_KINDS.map((k) => (
+            {TRAINING_KINDS.map((k) => (
               <option key={k} value={k}>
                 {KIND_LABELS[k]}
               </option>
@@ -318,10 +318,10 @@ function FitnessCard({ settings }: { settings: PublicSettings }) {
 function TypicalMinutesCard({ settings }: { settings: PublicSettings }) {
   const update = useUpdateSettings()
   const [draft, setDraft] = useState<Record<string, string>>(() =>
-    Object.fromEntries(ACTIVITY_KINDS.map((k) => [k, settings.typicalMinutes[k] ? String(settings.typicalMinutes[k]) : '']))
+    Object.fromEntries(TRAINING_KINDS.map((k) => [k, settings.typicalMinutes[k] ? String(settings.typicalMinutes[k]) : '']))
   )
   const parsed: TypicalMinutes = {}
-  for (const k of ACTIVITY_KINDS) {
+  for (const k of TRAINING_KINDS) {
     const n = Number(draft[k])
     if (draft[k] && Number.isInteger(n) && n > 0 && n <= 1440) parsed[k] = n
   }
@@ -334,7 +334,7 @@ function TypicalMinutesCard({ settings }: { settings: PublicSettings }) {
         minutes. Leave blank to not count them.
       </p>
       <div className="minutes-grid">
-        {ACTIVITY_KINDS.map((k) => (
+        {TRAINING_KINDS.map((k) => (
           <label key={k}>
             {KIND_LABELS[k]}
             <input

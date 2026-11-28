@@ -132,6 +132,32 @@ export class Repo {
     return toActivity(row)
   }
 
+  /**
+   * A habit check-in (ticked in Arete, Todoist or Praxis). A synced workout of the
+   * same type on the same day replaces it, so time isn't counted twice.
+   */
+  addHabitCheckIn(kind: ActivityKind, date: string, title: string, minutes: number): Activity {
+    assertDate(date)
+    if (!ACTIVITY_KINDS.includes(kind)) throw new Error('Invalid activity type')
+    const row = this.db
+      .insert(activities)
+      .values({
+        kind,
+        source: 'habit',
+        externalId: null,
+        date,
+        startedAt: null,
+        title: title.slice(0, 80),
+        durationSec: Math.round(optionalNumber(minutes, 0, 1440, 'duration')! * 60),
+        distanceM: null,
+        detail: '{}'
+      })
+      .returning()
+      .get()
+    this.store.changed()
+    return toActivity(row)
+  }
+
   /** Insert or update an activity that came from a sync. Returns true if it was new. */
   upsertSynced(row: ActivityRow): boolean {
     const existing = this.db
@@ -154,6 +180,11 @@ export class Repo {
       this.db.update(activities).set(values).where(eq(activities.id, existing.id)).run()
     } else {
       this.db.insert(activities).values(values).run()
+      // The real workout replaces a habit check-in for it.
+      this.db
+        .delete(activities)
+        .where(and(eq(activities.source, 'habit'), eq(activities.kind, row.kind), eq(activities.date, row.date)))
+        .run()
     }
     this.store.changed()
     return !existing

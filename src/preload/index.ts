@@ -33,6 +33,7 @@ const api: AreteApi = {
     return () => ipcRenderer.removeListener('arete:update', listener)
   },
   logHabit: call('logHabit'),
+  startHabit: call('startHabit'),
   syncNow: call('syncNow'),
   onSynced(callback) {
     const listener = (_event: Electron.IpcRendererEvent, report: SyncReport) => callback(report)

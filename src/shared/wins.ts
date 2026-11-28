@@ -1,5 +1,5 @@
 // Immediate rewards: personal records and habit milestones, newest first.
-import { addDays, type Point } from './logic.ts'
+import { addDays, daysBetween, type Point } from './logic.ts'
 import { estimateVo2Max, isTwoKTest, liftHistories } from './progress.ts'
 import type { HabitStatus } from './habits.ts'
 import type { Activity } from './types.ts'
@@ -71,6 +71,19 @@ export function findWins(
         low = p.value
       }
     }
+  }
+
+  // Habits that became formed.
+  for (const s of statuses) {
+    if (!s.formedOn || s.formedOn < since) continue
+    const days = daysBetween(s.habit.startDate, s.formedOn) + 1
+    wins.push({
+      id: `formed:${s.habit.id}`,
+      date: s.formedOn,
+      kind: 'habit',
+      title: `${s.habit.name} is formed`,
+      detail: `Strong and steady after ${days} days. It's part of who you are now.`
+    })
   }
 
   // Habit milestones.
