@@ -6,6 +6,7 @@ In Aristotle's ethics, *arete* (excellence) isn't inborn. It's built through rep
 
 ## What it does
 
+- **Habits:** each habit is an if-then plan (a cue and a time) with a full and a minimum version; the minimum still counts. A habit-strength score grows with each repetition and dips, rather than resets, after a miss ("never miss twice"). Recovery weeks after repeated misses, a weekly review with suggestions, and a feed of personal records and habit milestones (with notifications). With a Todoist token, each day's habits go on your Todoist list at their cue times, so Praxis shows them; ticking one there logs it here.
 - **Week:** your weekly plan next to what actually happened, with one-click check-ins and progress through a training program ("week 5 of 12").
 - **Activity:** lifting imported from Hevy, rowing imported from the Concept2 Logbook, and anything else logged by hand. Includes a rowing pace chart.
 - **Food:** meals described in plain words. With an Anthropic API key, Arete estimates calories and protein (with a range) from the description.

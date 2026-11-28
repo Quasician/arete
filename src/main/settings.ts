@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { safeStorage } from 'electron'
 import { emptyPlan } from '../shared/logic.ts'
+import { validHabit, type Habit } from '../shared/habits.ts'
 import {
   ACTIVITY_KINDS,
   type AgeGroup,
@@ -30,6 +31,13 @@ interface StoredSettings {
   openAtLogin: boolean
   themeMode: ThemeMode
   sunLocation: SunLocation | null
+  habits: Habit[]
+  recoveryUntil: string | null
+  habitTasks: boolean
+  /** Ids of wins already announced with a notification. */
+  notifiedWins: string[]
+  /** Monday of the last week whose review was put in Todoist. */
+  lastReviewWeek: string | null
   plan: WeeklyPlan
   program: TrainingProgram | null
   secrets: Partial<Record<SecretName, string>>
@@ -44,6 +52,11 @@ const DEFAULTS: StoredSettings = {
   openAtLogin: true,
   themeMode: 'auto',
   sunLocation: null,
+  habits: [],
+  recoveryUntil: null,
+  habitTasks: true,
+  notifiedWins: [],
+  lastReviewWeek: null,
   plan: emptyPlan(),
   program: null,
   secrets: {},
@@ -66,6 +79,19 @@ function validTypicalMinutes(t: unknown): t is TypicalMinutes {
       ([k, v]) => ACTIVITY_KINDS.includes(k as never) && Number.isInteger(v) && (v as number) > 0 && (v as number) <= 1440
     )
   )
+}
+
+function validHabits(h: unknown): h is Habit[] {
+  return (
+    Array.isArray(h) &&
+    h.length <= 30 &&
+    h.every((x) => validHabit(x) && ACTIVITY_KINDS.includes((x as Habit).kind)) &&
+    new Set(h.map((x) => (x as Habit).id)).size === h.length
+  )
+}
+
+function validDateOrNull(d: unknown): d is string | null {
+  return d === null || d === undefined || (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
 }
 
 function validLocation(l: unknown): l is SunLocation | null {
@@ -113,6 +139,11 @@ export class Settings {
         openAtLogin: parsed.openAtLogin !== false,
         themeMode: parsed.themeMode === 'light' || parsed.themeMode === 'dark' ? parsed.themeMode : 'auto',
         sunLocation: validLocation(parsed.sunLocation) ? (parsed.sunLocation ?? null) : null,
+        habits: validHabits(parsed.habits) ? parsed.habits : [],
+        recoveryUntil: validDateOrNull(parsed.recoveryUntil) ? (parsed.recoveryUntil ?? null) : null,
+        habitTasks: parsed.habitTasks !== false,
+        notifiedWins: Array.isArray(parsed.notifiedWins) ? parsed.notifiedWins.filter((x) => typeof x === 'string').slice(-300) : [],
+        lastReviewWeek: validDateOrNull(parsed.lastReviewWeek) ? (parsed.lastReviewWeek ?? null) : null,
         plan: validPlan(parsed.plan) ? parsed.plan : emptyPlan(),
         program: validProgram(parsed.program) ? (parsed.program ?? null) : null,
         secrets: parsed.secrets ?? {},
@@ -156,6 +187,9 @@ export class Settings {
       openAtLogin: this.data.openAtLogin,
       themeMode: this.data.themeMode,
       sunLocation: this.data.sunLocation,
+      habits: this.data.habits,
+      recoveryUntil: this.data.recoveryUntil,
+      habitTasks: this.data.habitTasks,
       plan: this.data.plan,
       program: this.data.program,
       secrets,
@@ -193,6 +227,18 @@ export class Settings {
       if (!validLocation(patch.sunLocation)) throw new Error('Invalid location')
       this.data.sunLocation = patch.sunLocation
     }
+    if (patch.habits !== undefined) {
+      if (!validHabits(patch.habits)) throw new Error('Invalid habits')
+      this.data.habits = patch.habits
+    }
+    if (patch.recoveryUntil !== undefined) {
+      if (!validDateOrNull(patch.recoveryUntil)) throw new Error('Invalid recovery date')
+      this.data.recoveryUntil = patch.recoveryUntil
+    }
+    if (patch.habitTasks !== undefined) {
+      if (typeof patch.habitTasks !== 'boolean') throw new Error('Invalid Todoist setting')
+      this.data.habitTasks = patch.habitTasks
+    }
     if (patch.plan !== undefined) {
       if (!validPlan(patch.plan)) throw new Error('Invalid weekly plan')
       this.data.plan = patch.plan
@@ -226,6 +272,31 @@ export class Settings {
     } catch {
       return null
     }
+  }
+
+  get habits() {
+    return this.data.habits
+  }
+  get recoveryUntil() {
+    return this.data.recoveryUntil
+  }
+  get habitTasks() {
+    return this.data.habitTasks
+  }
+  wasNotified(id: string): boolean {
+    return this.data.notifiedWins.includes(id)
+  }
+  markNotified(ids: string[]): void {
+    if (ids.length === 0) return
+    this.data.notifiedWins = [...this.data.notifiedWins, ...ids].slice(-300)
+    this.save()
+  }
+  get lastReviewWeek() {
+    return this.data.lastReviewWeek
+  }
+  setLastReviewWeek(week: string): void {
+    this.data.lastReviewWeek = week
+    this.save()
   }
 
   recordSync(source: SyncSource, status: SyncStatus): void {

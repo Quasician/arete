@@ -1,4 +1,5 @@
 // Types shared by the main process, the preload bridge and the window.
+import type { Habit } from './habits.ts'
 
 export const ACTIVITY_KINDS = ['lift', 'row', 'climb', 'hike', 'run', 'walk', 'other'] as const
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
@@ -141,10 +142,10 @@ export interface SunLocation {
 /** Typical minutes for sessions logged without a duration, by activity type. */
 export type TypicalMinutes = Partial<Record<ActivityKind, number>>
 
-export const SECRET_NAMES = ['hevy', 'concept2', 'anthropic'] as const
+export const SECRET_NAMES = ['hevy', 'concept2', 'anthropic', 'todoist'] as const
 export type SecretName = (typeof SECRET_NAMES)[number]
 
-export type SyncSource = 'hevy' | 'concept2'
+export type SyncSource = 'hevy' | 'concept2' | 'todoist'
 
 export interface SyncStatus {
   at: string
@@ -162,6 +163,11 @@ export interface PublicSettings {
   themeMode: ThemeMode
   /** Null means a rough guess from the time zone. */
   sunLocation: SunLocation | null
+  habits: Habit[]
+  /** While today is on or before this date, habits ask only for their minimum version. */
+  recoveryUntil: string | null
+  /** Put each day's habits in Todoist (so Praxis shows them). Needs a Todoist token. */
+  habitTasks: boolean
   plan: WeeklyPlan
   program: TrainingProgram | null
   /** Which keys are saved. The keys themselves never leave the main process. */
@@ -178,6 +184,9 @@ export interface SettingsPatch {
   openAtLogin?: boolean
   themeMode?: ThemeMode
   sunLocation?: SunLocation | null
+  habits?: Habit[]
+  recoveryUntil?: string | null
+  habitTasks?: boolean
   plan?: WeeklyPlan
   program?: TrainingProgram | null
 }
@@ -258,6 +267,9 @@ export interface AreteApi {
   /** Quits, installs the downloaded update and reopens Arete. */
   installUpdate(): Promise<void>
   onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
+
+  /** Logs a habit as done today (full or minimum version) and closes its Todoist task. */
+  logHabit(habitId: string, version: 'full' | 'minimum'): Promise<Activity>
 
   syncNow(): Promise<SyncReport>
   onSynced(callback: (report: SyncReport) => void): () => void

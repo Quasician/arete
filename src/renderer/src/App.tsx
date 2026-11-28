@@ -9,11 +9,13 @@ import { FoodPage } from './pages/FoodPage'
 import { WeightPage } from './pages/WeightPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProgressPage } from './pages/ProgressPage'
+import { HabitsPage } from './pages/HabitsPage'
 import icon from './assets/icon.png'
 import { useThemeController } from './theme'
 
 const NAV: { page: Page; label: string }[] = [
   { page: 'week', label: 'Week' },
+  { page: 'habits', label: 'Habits' },
   { page: 'activity', label: 'Activity' },
   { page: 'food', label: 'Food' },
   { page: 'weight', label: 'Weight' },
@@ -49,6 +51,7 @@ export function App() {
       </aside>
       <main className="content">
         {page === 'week' && <WeekPage />}
+        {page === 'habits' && <HabitsPage />}
         {page === 'activity' && <ActivityPage />}
         {page === 'food' && <FoodPage />}
         {page === 'weight' && <WeightPage />}
@@ -59,6 +62,8 @@ export function App() {
   )
 }
 
+const SOURCE_NAMES: Record<string, string> = { hevy: 'Hevy', concept2: 'Concept2', todoist: 'Todoist' }
+
 function SyncPanel() {
   const settings = useSettings().data
   const qc = useQueryClient()
@@ -66,7 +71,7 @@ function SyncPanel() {
   const [error, setError] = useState<string | null>(null)
   const version = useQuery({ queryKey: ['appInfo'], queryFn: () => api.appInfo() }).data?.version
 
-  const hasKeys = settings && Object.values(settings.secrets).some(Boolean)
+  const hasKeys = settings && (settings.secrets.hevy || settings.secrets.concept2 || settings.secrets.todoist)
   const statuses = settings ? Object.entries(settings.lastSync) : []
 
   async function syncNow() {
@@ -91,12 +96,12 @@ function SyncPanel() {
           </button>
           {statuses.map(([source, s]) => (
             <div key={source} className={s.ok ? 'sync-line' : 'sync-line bad'} title={s.message}>
-              {source === 'hevy' ? 'Hevy' : 'Concept2'}: {s.ok ? timeAgo(s.at) : 'needs attention'}
+              {SOURCE_NAMES[source] ?? source}: {s.ok ? timeAgo(s.at) : 'needs attention'}
             </div>
           ))}
         </>
       ) : (
-        <div className="sync-line">Add your Hevy and Concept2 keys in Settings to import workouts.</div>
+        <div className="sync-line">Add your Hevy, Concept2 and Todoist keys in Settings to connect them.</div>
       )}
       {error && <div className="sync-line bad">{error}</div>}
       <UpdateNotice />

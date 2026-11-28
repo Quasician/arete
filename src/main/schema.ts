@@ -31,6 +31,19 @@ export const weights = sqliteTable(
   (t) => [uniqueIndex('weights_source_external').on(t.source, t.externalId), index('weights_date').on(t.date)]
 )
 
+/** Todoist tasks Arete created for habits, one per habit per day. */
+export const habitTasks = sqliteTable(
+  'habit_tasks',
+  {
+    habitId: text('habit_id').notNull(),
+    date: text('date').notNull(),
+    taskId: text('task_id').notNull(),
+    /** open, closed (done), or removed (left undone and tidied away). */
+    state: text('state').notNull()
+  },
+  (t) => [uniqueIndex('habit_tasks_habit_date').on(t.habitId, t.date)]
+)
+
 export const meals = sqliteTable(
   'meals',
   {
@@ -99,5 +112,15 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE meals ADD COLUMN kcal_low INTEGER;
   ALTER TABLE meals ADD COLUMN kcal_high INTEGER;
   ALTER TABLE meals ADD COLUMN note TEXT;
+  `,
+  // 3: Todoist tasks created for habits.
+  `
+  CREATE TABLE habit_tasks (
+    habit_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    state TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX habit_tasks_habit_date ON habit_tasks (habit_id, date);
   `
 ]

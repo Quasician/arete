@@ -1,7 +1,7 @@
 // Reads and writes for activities, weights and meals.
 import { and, asc, between, desc, eq } from 'drizzle-orm'
 import type { Store } from './db.ts'
-import { activities, meals, weights } from './schema.ts'
+import { activities, habitTasks, meals, weights } from './schema.ts'
 import { ACTIVITY_KINDS, MEAL_SLOTS } from '../shared/types.ts'
 import type {
   Activity,
@@ -266,6 +266,38 @@ export class Repo {
   deleteWeight(id: number): void {
     this.db.delete(weights).where(eq(weights.id, id)).run()
     this.store.changed()
+  }
+
+  // ---------- Todoist tasks for habits ----------
+
+  habitTask(habitId: string, date: string) {
+    return this.db
+      .select()
+      .from(habitTasks)
+      .where(and(eq(habitTasks.habitId, habitId), eq(habitTasks.date, date)))
+      .get()
+  }
+
+  openHabitTasks() {
+    return this.db.select().from(habitTasks).where(eq(habitTasks.state, 'open')).all()
+  }
+
+  saveHabitTask(habitId: string, date: string, taskId: string, state: 'open' | 'closed' | 'removed'): void {
+    if (this.habitTask(habitId, date)) {
+      this.db
+        .update(habitTasks)
+        .set({ taskId, state })
+        .where(and(eq(habitTasks.habitId, habitId), eq(habitTasks.date, date)))
+        .run()
+    } else {
+      this.db.insert(habitTasks).values({ habitId, date, taskId, state }).run()
+    }
+    this.store.changed()
+  }
+
+  /** Every activity, for habit and records calculations in the main process. */
+  allActivities(): Activity[] {
+    return this.db.select().from(activities).all().map(toActivity)
   }
 
   // ---------- meals ----------

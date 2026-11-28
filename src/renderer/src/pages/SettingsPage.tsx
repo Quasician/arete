@@ -29,6 +29,11 @@ const KEY_HELP: Record<SecretName, { label: string; help: string; url: string }>
     help: 'Imports your lifting workouts. Needs Hevy Pro; create the key in Hevy’s web app under Settings → Developer.',
     url: 'https://hevy.com/settings?developer'
   },
+  todoist: {
+    label: 'Todoist API token',
+    help: "Puts each day's habits on your Todoist list, so Praxis shows them, and logs a habit when you tick its task. It's the same token Praxis uses: Todoist → Settings → Integrations → Developer.",
+    url: 'https://app.todoist.com/app/settings/integrations/developer'
+  },
   anthropic: {
     label: 'Anthropic API key',
     help: 'Estimates calories and protein from meal descriptions on the Food page (a fraction of a cent per meal). Create one at console.anthropic.com under API keys.',
@@ -108,7 +113,7 @@ function KeyRow({
       const updated = await api.setSecret(name, next)
       qc.setQueryData(keys.settings, updated)
       setValue('')
-      if (next && name !== 'anthropic') void api.syncNow().then(() => qc.invalidateQueries())
+      if (next && name !== 'anthropic' && name !== 'todoist') void api.syncNow().then(() => qc.invalidateQueries())
     } catch (err) {
       setError(errorText(err))
     }

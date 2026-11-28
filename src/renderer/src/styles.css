@@ -927,3 +927,176 @@ details.card[open] > summary {
   font-style: italic;
   opacity: 0.85;
 }
+
+/* ---------- habits ---------- */
+
+.habit-today {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.today-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.today-card.done {
+  border-color: var(--ok-line);
+}
+.today-card.warn {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+.today-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.today-head h2 {
+  margin: 0;
+}
+.cue {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--subtle);
+}
+.cue strong {
+  color: var(--text);
+}
+.done-line {
+  margin: 0;
+  color: var(--ok);
+  font-weight: 600;
+}
+.warn-line {
+  margin: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+.strength-row {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.strength-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.strength-head .link {
+  margin-left: auto;
+  font-size: 12px;
+}
+.strength-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.strength-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 4px;
+}
+.dots {
+  display: grid;
+  grid-template-columns: repeat(28, 1fr);
+  gap: 3px;
+}
+.dot {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  max-width: 14px;
+}
+.dot.full {
+  background: var(--ok);
+}
+.dot.minimum {
+  background: transparent;
+  border: 2px solid var(--ok);
+}
+.dot.miss {
+  background: transparent;
+  border: 2px solid var(--danger);
+  opacity: 0.7;
+}
+.dot.off {
+  background: var(--track);
+  transform: scale(0.45);
+}
+.dot.extra {
+  background: var(--ok);
+  opacity: 0.45;
+  transform: scale(0.7);
+}
+.wins,
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.suggestions {
+  list-style: disc;
+  padding-left: 20px;
+  gap: 6px;
+  color: var(--subtle);
+  margin: 6px 0 12px;
+  line-height: 1.45;
+}
+.win {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0 8px 12px;
+  border-top: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+}
+.win-lift {
+  border-left-color: var(--kind-lift);
+}
+.win-row {
+  border-left-color: var(--kind-row);
+}
+.win-weight {
+  border-left-color: var(--ok);
+}
+.win-habit {
+  border-left-color: var(--primary);
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 18, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+.modal {
+  width: min(720px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  background: var(--bg);
+}
+.day-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.day-picks .checkbox-row {
+  margin: 0;
+}
+.button.ghost.danger-button {
+  margin-left: auto;
+  color: var(--danger);
+}
+.dot.pending {
+  background: transparent;
+  border: 2px dashed var(--subtle);
+}
