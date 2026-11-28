@@ -178,7 +178,7 @@ function StrengthCard({ activities, settings }: { activities: Activity[]; settin
           <p className="subtle small">
             {lift.byReps
               ? 'Most reps in a single set each session.'
-              : 'Estimated one-rep max from your best set each session (Epley formula, sets of 12 reps or fewer). For dumbbells this is per dumbbell, as Hevy logs it.'}
+              : 'Estimated one-rep max from your best set each session (Epley formula, sets of 12 reps or fewer). For dumbbells it uses the weight as you log it in Hevy.'}
           </p>
           <LiftChart lift={lift} units={settings.units} height={wide ? 360 : 260} />
           <LiftStats lift={lift} units={settings.units} />

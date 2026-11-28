@@ -96,11 +96,15 @@ export function goalProgress(goal: LiftGoal, histories: LiftHistory[], today: st
     .map((p) => ({ date: p.date, value: metricValue(p, goal.metric) }))
     .filter((x): x is { date: string; value: number } => x.value != null)
 
-  // Baseline: your best in the four weeks before the start, else the first session after it.
+  // Baseline: your best in the four weeks before the start; failing that, your
+  // most recent session in the 12 weeks before it; failing that, the first one after.
   let baseline = goal.baseline
   if (baseline == null) {
     const before = values.filter((v) => v.date <= goal.startDate && v.date > addDays(goal.startDate, -28))
-    baseline = before.length ? Math.max(...before.map((v) => v.value)) : (values.find((v) => v.date >= goal.startDate)?.value ?? null)
+    const lastBefore = values.filter((v) => v.date <= goal.startDate && v.date > addDays(goal.startDate, -84)).at(-1)
+    baseline = before.length
+      ? Math.max(...before.map((v) => v.value))
+      : (lastBefore?.value ?? values.find((v) => v.date >= goal.startDate)?.value ?? null)
   }
   let target = goal.target
   if (target == null && baseline != null) {

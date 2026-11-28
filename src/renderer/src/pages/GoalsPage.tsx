@@ -83,7 +83,7 @@ export function GoalsPage() {
         <div>
           <h1>Goals</h1>
           <p className="subtle">
-            Strength targets read from Hevy: estimated one-rep max for loaded lifts (per dumbbell, as Hevy logs it), reps
+            Strength targets read from Hevy: estimated one-rep max for loaded lifts (using the weight as you log it in Hevy), reps
             for bodyweight lifts, seconds for holds.
           </p>
         </div>

@@ -42,6 +42,14 @@ test('suggested goals find the Hevy exercises and set raw targets', () => {
   assert.ok(bench.progress > 0.3 && bench.progress < 0.5)
 })
 
+test('with nothing in the last four weeks, the baseline is the most recent session', () => {
+  const rdl: LiftGoal = { id: 'r', label: 'RDL', exercise: 'Romanian Deadlift (Dumbbell)', metric: 'e1rm', regions: ['hamstrings'], startDate: START, deadline: DEADLINE, baseline: null, target: null, rule: { pct: 10 } }
+  const h = liftHistories([session('2026-10-14', [{ name: 'Romanian Deadlift (Dumbbell)', bestE1rmKg: 46 }]), session('2026-10-28', [{ name: 'Romanian Deadlift (Dumbbell)', bestE1rmKg: 57.5 }])])
+  const p = goalProgress(rdl, h, '2026-12-02', 'lb')
+  assert.equal(p.baseline, 57.5)
+  assert.ok(Math.abs(p.target! - 139 * 0.45359237) < 1e-6)
+})
+
 test('goal status follows pace, and reaching it is a win', () => {
   const pull: LiftGoal = { id: 'p', label: 'Pull-ups', exercise: 'Pull Up', metric: 'reps', regions: ['upperBack', 'biceps'], startDate: START, deadline: DEADLINE, baseline: null, target: null, rule: { add: 3 } }
   const early = goalProgress(pull, histories, '2026-12-20', 'lb')
