@@ -1,6 +1,7 @@
 // Types shared by the main process, the preload bridge and the window.
 import type { Habit } from './habits.ts'
 import type { LiftGoal } from './goals.ts'
+import type { Change, ProgressionSettings } from './progression.ts'
 
 export const ACTIVITY_KINDS = [
   'lift',
@@ -74,6 +75,8 @@ export interface LiftSummary {
   bestReps: number
   /** Longest timed set in seconds (holds, hangs, planks), if any. */
   bestSeconds?: number
+  /** Each working set, in order: weight in kg, reps, seconds (null where not logged). */
+  workSets?: { kg: number | null; reps: number | null; sec: number | null }[]
 }
 
 export interface ActivityDetail {
@@ -202,6 +205,9 @@ export interface PublicSettings {
   habitTasks: boolean
   /** Strength goals, read from Hevy. */
   liftGoals: LiftGoal[]
+  /** Week-to-week progression written into Hevy routines. */
+  progression: ProgressionSettings
+  progressLog: { at: string; changes: Change[] }[]
   plan: WeeklyPlan
   program: TrainingProgram | null
   /** Which keys are saved. The keys themselves never leave the main process. */
@@ -222,6 +228,7 @@ export interface SettingsPatch {
   recoveryUntil?: string | null
   habitTasks?: boolean
   liftGoals?: LiftGoal[]
+  progression?: ProgressionSettings
   plan?: WeeklyPlan
   program?: TrainingProgram | null
 }
@@ -310,6 +317,11 @@ export interface AreteApi {
     habitId: string,
     plan: { days: number[]; time: string | null; startDate: string; fullMinutes: number }
   ): Promise<PublicSettings>
+
+  /** Next targets for every routine exercise, worked out from Hevy, without changing anything. */
+  previewProgression(): Promise<{ changes: Change[]; routines: number }>
+  /** Writes the next targets into the Hevy routines now. */
+  applyProgression(): Promise<Change[]>
 
   syncNow(): Promise<SyncReport>
   onSynced(callback: (report: SyncReport) => void): () => void

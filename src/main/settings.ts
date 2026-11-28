@@ -7,6 +7,7 @@ import { safeStorage } from 'electron'
 import { emptyPlan } from '../shared/logic.ts'
 import { validHabit, type Habit } from '../shared/habits.ts'
 import { validGoal, type LiftGoal } from '../shared/goals.ts'
+import { DEFAULT_STEP_KG, type Change, type ProgressionSettings } from '../shared/progression.ts'
 import {
   ACTIVITY_KINDS,
   type AgeGroup,
@@ -36,6 +37,9 @@ interface StoredSettings {
   recoveryUntil: string | null
   habitTasks: boolean
   liftGoals: LiftGoal[]
+  progression: ProgressionSettings
+  /** What the progression changed in Hevy, newest last. */
+  progressLog: { at: string; changes: Change[] }[]
   /** Ids of wins already announced with a notification. */
   notifiedWins: string[]
   /** Monday of the last week whose review was put in Todoist. */
@@ -58,6 +62,8 @@ const DEFAULTS: StoredSettings = {
   recoveryUntil: null,
   habitTasks: true,
   liftGoals: [],
+  progression: { enabled: false, stepKg: DEFAULT_STEP_KG, ranges: {} },
+  progressLog: [],
   notifiedWins: [],
   lastReviewWeek: null,
   plan: emptyPlan(),
@@ -95,6 +101,29 @@ function validHabits(h: unknown): h is Habit[] {
 
 function validGoals(g: unknown): g is LiftGoal[] {
   return Array.isArray(g) && g.length <= 20 && g.every(validGoal) && new Set(g.map((x) => (x as LiftGoal).id)).size === g.length
+}
+
+function validProgression(p: unknown): p is ProgressionSettings {
+  const x = p as ProgressionSettings
+  return (
+    typeof x === 'object' &&
+    x !== null &&
+    typeof x.enabled === 'boolean' &&
+    typeof x.stepKg === 'number' &&
+    x.stepKg > 0 &&
+    x.stepKg <= 25 &&
+    typeof x.ranges === 'object' &&
+    x.ranges !== null &&
+    Object.keys(x.ranges).length <= 200 &&
+    Object.entries(x.ranges).every(
+      ([k, r]) =>
+        k.length <= 60 &&
+        Array.isArray(r) &&
+        r.length === 2 &&
+        r.every((n) => Number.isInteger(n) && n >= 1 && n <= 50) &&
+        r[0] < r[1]
+    )
+  )
 }
 
 function validDateOrNull(d: unknown): d is string | null {
@@ -150,6 +179,8 @@ export class Settings {
         recoveryUntil: validDateOrNull(parsed.recoveryUntil) ? (parsed.recoveryUntil ?? null) : null,
         habitTasks: parsed.habitTasks !== false,
         liftGoals: validGoals(parsed.liftGoals) ? parsed.liftGoals : [],
+        progression: validProgression(parsed.progression) ? parsed.progression : structuredClone(DEFAULTS.progression),
+        progressLog: Array.isArray(parsed.progressLog) ? parsed.progressLog.slice(-30) : [],
         notifiedWins: Array.isArray(parsed.notifiedWins) ? parsed.notifiedWins.filter((x) => typeof x === 'string').slice(-300) : [],
         lastReviewWeek: validDateOrNull(parsed.lastReviewWeek) ? (parsed.lastReviewWeek ?? null) : null,
         plan: validPlan(parsed.plan) ? parsed.plan : emptyPlan(),
@@ -199,6 +230,8 @@ export class Settings {
       recoveryUntil: this.data.recoveryUntil,
       habitTasks: this.data.habitTasks,
       liftGoals: this.data.liftGoals,
+      progression: this.data.progression,
+      progressLog: this.data.progressLog,
       plan: this.data.plan,
       program: this.data.program,
       secrets,
@@ -252,6 +285,10 @@ export class Settings {
       if (!validGoals(patch.liftGoals)) throw new Error('Invalid goals')
       this.data.liftGoals = patch.liftGoals
     }
+    if (patch.progression !== undefined) {
+      if (!validProgression(patch.progression)) throw new Error('Invalid progression settings')
+      this.data.progression = patch.progression
+    }
     if (patch.plan !== undefined) {
       if (!validPlan(patch.plan)) throw new Error('Invalid weekly plan')
       this.data.plan = patch.plan
@@ -298,6 +335,13 @@ export class Settings {
   }
   get liftGoals() {
     return this.data.liftGoals
+  }
+  get progression() {
+    return this.data.progression
+  }
+  recordProgression(changes: Change[]): void {
+    this.data.progressLog = [...this.data.progressLog, { at: new Date().toISOString(), changes }].slice(-30)
+    this.save()
   }
   wasNotified(id: string): boolean {
     return this.data.notifiedWins.includes(id)

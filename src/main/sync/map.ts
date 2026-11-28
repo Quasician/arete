@@ -26,7 +26,7 @@ export interface HevySet {
 }
 
 /** Bumped when per-exercise detail gains fields, so older imports are re-read once. */
-export const HEVY_DETAIL_VERSION = 2
+export const HEVY_DETAIL_VERSION = 3
 
 export interface HevyWorkout {
   id: string
@@ -52,7 +52,8 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
       sets: 0,
       bestE1rmKg: null,
       topWeightKg: null,
-      bestReps: 0
+      bestReps: 0,
+      workSets: []
     }
     for (const s of ex.sets ?? []) {
       if (s.type === 'warmup') continue
@@ -62,6 +63,11 @@ export function mapHevyWorkout(w: HevyWorkout): ActivityRow | null {
       const weight = s.weight_kg ?? 0
       if (weight && reps) volumeKg += weight * reps
       lift.bestReps = Math.max(lift.bestReps, reps)
+      lift.workSets!.push({
+        kg: s.weight_kg && s.weight_kg > 0 ? Math.round(s.weight_kg * 1000) / 1000 : null,
+        reps: s.reps ?? null,
+        sec: s.duration_seconds && s.duration_seconds > 0 ? Math.round(s.duration_seconds) : null
+      })
       if (s.duration_seconds && s.duration_seconds > 0) lift.bestSeconds = Math.max(lift.bestSeconds ?? 0, Math.round(s.duration_seconds))
       if (weight > 0) {
         lift.topWeightKg = Math.max(lift.topWeightKg ?? 0, weight)

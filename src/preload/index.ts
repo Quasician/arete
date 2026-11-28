@@ -34,6 +34,8 @@ const api: AreteApi = {
   },
   logHabit: call('logHabit'),
   startHabit: call('startHabit'),
+  previewProgression: call('previewProgression'),
+  applyProgression: call('applyProgression'),
   syncNow: call('syncNow'),
   onSynced(callback) {
     const listener = (_event: Electron.IpcRendererEvent, report: SyncReport) => callback(report)

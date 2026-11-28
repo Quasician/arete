@@ -14,7 +14,8 @@ import {
   type GoalProgress,
   type LiftGoal
 } from '@shared/goals'
-import type { PublicSettings, Units } from '@shared/types'
+import type { Activity, PublicSettings, Units } from '@shared/types'
+import { ACCESSORY_RANGE, LB, MAIN_RANGE, sessionsToTarget, type Change } from '@shared/progression'
 import { api, errorText, keys, useSettings, useUpdateSettings } from '../api'
 import { longDate, monthDay, weightFromKg, weightToKg } from '../format'
 import { Chart, baseOption } from '../components/Chart'
@@ -130,6 +131,7 @@ export function GoalsPage() {
                   <GoalRow
                     key={p.goal.id}
                     p={p}
+                    pace={paceFor(p, activities.data ?? [], settings, today)}
                     units={units}
                     lit={lit(p)}
                     selected={selected === p.goal.id}
@@ -140,6 +142,7 @@ export function GoalsPage() {
               </ul>
             </section>
             {focus && <GoalChart p={focus} units={units} height={wide ? 340 : 260} />}
+            <ProgressionCard settings={settings} />
           </div>
         </div>
       )}
@@ -157,8 +160,29 @@ export function GoalsPage() {
   )
 }
 
+/** When a rep a session (and a step at the top of the range) gets there, for loaded lifts. */
+function paceFor(p: GoalProgress, activities: Activity[], settings: PublicSettings, today: string): string | null {
+  if (p.goal.metric !== 'e1rm' || !p.goal.exercise || p.target == null || p.status === 'reached') return null
+  const sessions = activities
+    .filter((a) => a.detail.lifts?.some((l) => l.name === p.goal.exercise && l.workSets?.length))
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const last = sessions.at(-1)?.detail.lifts?.find((l) => l.name === p.goal.exercise)
+  if (!last?.workSets?.length) return null
+  const top = Math.max(...last.workSets.map((s) => s.kg ?? 0))
+  if (!top) return null
+  const reps = Math.min(...last.workSets.filter((s) => (s.kg ?? 0) >= top - 0.05).map((s) => s.reps ?? 0))
+  const range = settings.progression.ranges[last.templateId ?? ''] ?? MAIN_RANGE
+  const n = sessionsToTarget(top, reps, p.target, range, settings.progression.stepKg)
+  if (n == null) return 'Not within a year at a rep a session: worth a look at the week-6 check'
+  const recent = new Set(sessions.filter((a) => a.date > addDays(today, -28)).map((a) => a.date)).size
+  const perWeek = Math.max(1, recent / 4)
+  const eta = addDays(today, Math.ceil((n / perWeek) * 7))
+  return `${n} more session${n === 1 ? '' : 's'} at a rep each → around ${monthDay(eta)}${eta <= p.goal.deadline ? ', before the deadline' : ', after the deadline'}`
+}
+
 function GoalRow({
   p,
+  pace,
   units,
   lit,
   selected,
@@ -166,6 +190,7 @@ function GoalRow({
   onEdit
 }: {
   p: GoalProgress
+  pace: string | null
   units: Units
   lit: boolean
   selected: boolean
@@ -194,6 +219,7 @@ function GoalRow({
           <div style={{ width: `${Math.max(1, p.progress * 100)}%` }} />
           {p.status !== 'reached' && <i style={{ left: `${p.expected * 100}%` }} />}
         </div>
+        {pace && <div className="small pace-line">{pace}</div>}
         <div className="subtle small">
           {p.goal.exercise ?? 'No Hevy exercise picked'} · {p.goal.regions.map((r) => REGION_LABELS[r]).join(', ')}
         </div>
@@ -259,6 +285,126 @@ function GoalChart({ p, units, height }: { p: GoalProgress; units: Units; height
       </p>
       <Chart option={option} height={height} />
     </section>
+  )
+}
+
+// ---------- weekly progression ----------
+
+function ProgressionCard({ settings }: { settings: PublicSettings }) {
+  const update = useUpdateSettings()
+  const [preview, setPreview] = useState<{ changes: Change[]; routines: number } | null>(null)
+  const [busy, setBusy] = useState<'preview' | 'apply' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [applied, setApplied] = useState<number | null>(null)
+  const prog = settings.progression
+  const lb = settings.units === 'lb'
+  const steps = lb ? [2.5, 5, 10].map((n) => ({ label: `${n} lb`, kg: n * LB })) : [1, 2, 2.5, 5].map((n) => ({ label: `${n} kg`, kg: n }))
+  const stepValue = steps.reduce((a, b) => (Math.abs(b.kg - prog.stepKg) < Math.abs(a.kg - prog.stepKg) ? b : a)).label
+  const log = [...settings.progressLog].reverse().slice(0, 3)
+
+  async function run(kind: 'preview' | 'apply') {
+    setBusy(kind)
+    setError(null)
+    try {
+      if (kind === 'preview') {
+        setPreview(await api.previewProgression())
+        setApplied(null)
+      } else {
+        const changes = await api.applyProgression()
+        setApplied(changes.length)
+        setPreview(null)
+        update.mutate({})
+      }
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>Weekly progression in Hevy</h2>
+      <p className="subtle small">
+        After each workout syncs, Arete sets the next targets in your Hevy routines: same weight and one more rep until
+        every working set reaches the top of its range, then one step heavier and back to the bottom. Goal lifts use{' '}
+        {MAIN_RANGE[0]}–{MAIN_RANGE[1]} reps, everything else {ACCESSORY_RANGE[0]}–{ACCESSORY_RANGE[1]}; bodyweight
+        exercises add a rep and holds add 5 seconds. Only weights and target reps change; exercises, order, notes, rest
+        times and warm-ups stay as they are, and a copy of your routines is kept before each change.
+      </p>
+      <div className="form-row">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={prog.enabled}
+            disabled={!settings.secrets.hevy}
+            onChange={(e) => update.mutate({ progression: { ...prog, enabled: e.target.checked } })}
+          />
+          Move my Hevy routines on after each workout
+        </label>
+        <label>
+          Weight step (both dumbbells)
+          <select value={stepValue} onChange={(e) => update.mutate({ progression: { ...prog, stepKg: steps.find((s) => s.label === e.target.value)!.kg } })}>
+            {steps.map((s) => (
+              <option key={s.label}>{s.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="row">
+        <button className="button ghost" disabled={!settings.secrets.hevy || busy !== null} onClick={() => run('preview')}>
+          {busy === 'preview' ? 'Reading Hevy…' : 'Preview next targets'}
+        </button>
+        {preview && preview.changes.length > 0 && (
+          <button className="button" disabled={busy !== null} onClick={() => run('apply')}>
+            {busy === 'apply' ? 'Updating Hevy…' : `Update ${new Set(preview.changes.map((c) => c.routineId)).size} routine(s) now`}
+          </button>
+        )}
+      </div>
+      {!settings.secrets.hevy && <p className="subtle small">Needs your Hevy API key in Settings.</p>}
+      {error && <p className="error small">{error}</p>}
+      {applied != null && <p className="ready-line">{applied ? `Updated ${applied} target${applied === 1 ? '' : 's'} in Hevy.` : 'Nothing to change.'}</p>}
+      {preview && (
+        preview.changes.length === 0 ? (
+          <p className="subtle">
+            All {preview.routines} routines are already set for your next sessions. Targets move once you've lifted what's planned.
+          </p>
+        ) : (
+          <ChangeTable changes={preview.changes} />
+        )
+      )}
+      {log.length > 0 && !preview && (
+        <>
+          <h3>Recent changes</h3>
+          {log.map((l) => (
+            <div key={l.at}>
+              <p className="subtle small">{longDate(l.at.slice(0, 10))}</p>
+              <ChangeTable changes={l.changes} />
+            </div>
+          ))}
+        </>
+      )}
+    </section>
+  )
+}
+
+function ChangeTable({ changes }: { changes: Change[] }) {
+  return (
+    <table className="table change-table">
+      <tbody>
+        {changes.map((c) => (
+          <tr key={`${c.routineId}-${c.templateId}`}>
+            <td>
+              <strong>{c.exercise}</strong>
+              <div className="subtle small">{c.routine}</div>
+            </td>
+            <td className="subtle">{c.from}</td>
+            <td>→ {c.to}</td>
+            <td className="subtle small">{c.why}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

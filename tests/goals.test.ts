@@ -98,7 +98,7 @@ test('Hevy timed sets are kept for holds', () => {
     exercises: [{ title: 'Dead Hang', sets: [{ duration_seconds: 42 }, { duration_seconds: 48.4 }] }]
   })!
   assert.equal(row.detail.lifts![0].bestSeconds, 48)
-  assert.equal(row.detail.liftsVersion, 2)
+  assert.equal(row.detail.liftsVersion, 3)
   assert.equal(liftHistories([{ ...session('2026-12-01', []), detail: row.detail }])[0].points[0].bestSeconds, 48)
   void addDays
 })

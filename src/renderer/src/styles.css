@@ -1492,3 +1492,11 @@ select:disabled {
 .setup-table {
   margin: 12px 0 14px;
 }
+
+.pace-line {
+  color: var(--primary);
+}
+.change-table td {
+  vertical-align: top;
+  padding: 6px 8px;
+}

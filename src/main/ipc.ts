@@ -10,6 +10,7 @@ import { applyOpenAtLogin } from './startup.ts'
 import { estimateMeal } from './estimate.ts'
 import { inRecovery, startQueuedHabit, syncHabitTasks } from './habitSync.ts'
 import { announceWins } from './announce.ts'
+import { applyProgression, previewProgression } from './progress.ts'
 import { toLocalDate } from '../shared/logic.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
 import type {
@@ -123,6 +124,9 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
     return settings.public()
   })
 
+  handle('previewProgression', () => previewProgression(settings, repo))
+  handle('applyProgression', () => applyProgression(settings, repo, app.getPath('userData')))
+
   handle('syncNow', () => runSync(repo, settings, getWindow))
 }
 
@@ -132,6 +136,22 @@ export async function runSync(
   getWindow: () => BrowserWindow | null
 ): Promise<SyncReport> {
   const report = await syncAll(settings, repo)
+  // After new workouts arrive, move the Hevy routines on to their next targets.
+  if (settings.progression.enabled && report.results.hevy?.ok) {
+    try {
+      const changes = await applyProgression(settings, repo, app.getPath('userData'))
+      if (changes.length) {
+        report.results.hevy = {
+          ...report.results.hevy,
+          message: `${report.results.hevy.message}; ${changes.length} routine target${changes.length === 1 ? '' : 's'} moved on`
+        }
+        settings.recordSync('hevy', report.results.hevy)
+      }
+    } catch (err) {
+      report.results.hevy = { at: new Date().toISOString(), ok: false, message: err instanceof Error ? err.message : String(err) }
+      settings.recordSync('hevy', report.results.hevy)
+    }
+  }
   const habitError = await runHabitSync(repo, settings, getWindow, false)
   if (settings.getSecret('todoist') && settings.habitTasks) {
     report.results.todoist = {
