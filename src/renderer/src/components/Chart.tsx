@@ -10,6 +10,7 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
+import type { ChartPalette } from '../theme'
 
 echarts.use([
   LineChart,
@@ -23,25 +24,17 @@ echarts.use([
   CanvasRenderer
 ])
 
-/** Shared look for every chart, matched to the app's dark theme. */
-export const chartTheme = {
-  text: '#a9b4d0',
-  grid: 'rgba(169, 180, 208, 0.12)',
-  accent: '#f2c86b',
-  primary: '#7aa7ff',
-  muted: 'rgba(122, 167, 255, 0.35)'
-}
-
-export function baseOption(): EChartsCoreOption {
+/** Shared look for every chart, in the current theme's colours. */
+export function baseOption(t: ChartPalette): EChartsCoreOption {
   return {
     backgroundColor: 'transparent',
-    textStyle: { color: chartTheme.text, fontFamily: 'inherit' },
+    textStyle: { color: t.text, fontFamily: 'inherit' },
     grid: { left: 48, right: 16, top: 28, bottom: 32 },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#141b33',
-      borderColor: '#2a3558',
-      textStyle: { color: '#e8ecf7' }
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText }
     }
   }
 }

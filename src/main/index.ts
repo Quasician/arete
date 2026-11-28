@@ -7,6 +7,7 @@ import { registerIpc, runSync } from './ipc.ts'
 import { loadWindowState, trackWindowState } from './windowState.ts'
 import { checkForUpdatesAndAnnounce, startUpdater } from './updater.ts'
 import { applyOpenAtLogin } from './startup.ts'
+import { guessLocation, phaseAt, type Phase } from '../shared/sun.ts'
 
 const SYNC_EVERY_MS = 60 * 60 * 1000
 
@@ -33,7 +34,23 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(start)
 }
 
-function createWindow(): BrowserWindow {
+/** Window background while the page loads, matching the theme it will open in. */
+const PHASE_BACKGROUND: Record<Phase, string> = {
+  night: '#0b1020',
+  dusk: '#1b1633',
+  dawn: '#f7eef0',
+  day: '#eef3fb',
+  golden: '#f8eedd'
+}
+
+function startingBackground(settings: Settings): string {
+  const s = settings.public()
+  if (s.themeMode === 'dark') return PHASE_BACKGROUND.night
+  if (s.themeMode === 'light') return PHASE_BACKGROUND.day
+  return PHASE_BACKGROUND[phaseAt(new Date(), s.sunLocation ?? guessLocation())]
+}
+
+function createWindow(settings: Settings): BrowserWindow {
   const stateFile = path.join(app.getPath('userData'), 'window-state.json')
   const state = loadWindowState(stateFile)
   const win = new BrowserWindow({
@@ -44,7 +61,7 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     title: 'Arete',
-    backgroundColor: '#0b1020',
+    backgroundColor: startingBackground(settings),
     show: false,
     autoHideMenuBar: true,
     // In the installed app Windows takes the icon from Arete.exe.
@@ -102,7 +119,7 @@ async function start(): Promise<void> {
   const settings = new Settings(path.join(dataDir, 'settings.json'))
 
   registerIpc(repo, settings, () => mainWindow)
-  mainWindow = createWindow()
+  mainWindow = createWindow(settings)
 
   // Sync shortly after opening, then hourly while Arete is running.
   const sync = () => void runSync(repo, settings, () => mainWindow).catch(() => undefined)
@@ -115,7 +132,7 @@ async function start(): Promise<void> {
   if (process.argv.includes(CHECK_FOR_UPDATES_ARG)) void checkForUpdatesAndAnnounce()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow(settings)
   })
 }
 

@@ -66,7 +66,10 @@ function toMeal(r: MealRecord): Meal {
     portion: r.portion as Portion,
     kcal: r.kcal,
     proteinG: r.proteinG,
-    source: r.source as Meal['source']
+    source: r.source as Meal['source'],
+    kcalLow: r.kcalLow,
+    kcalHigh: r.kcalHigh,
+    note: r.note
   }
 }
 
@@ -270,6 +273,34 @@ export class Repo {
   listMeals(date: string): Meal[] {
     assertDate(date)
     return this.db.select().from(meals).where(eq(meals.date, date)).orderBy(asc(meals.id)).all().map(toMeal)
+  }
+
+  listMealsRange(from: string, to: string): Meal[] {
+    assertDate(from)
+    assertDate(to)
+    return this.db
+      .select()
+      .from(meals)
+      .where(between(meals.date, from, to))
+      .orderBy(asc(meals.date), asc(meals.id))
+      .all()
+      .map(toMeal)
+  }
+
+  getMeal(id: number): Meal | null {
+    const row = this.db.select().from(meals).where(eq(meals.id, id)).get()
+    return row ? toMeal(row) : null
+  }
+
+  saveMealEstimate(id: number, e: { kcal: number; kcalLow: number; kcalHigh: number; proteinG: number; note: string }): Meal {
+    const row = this.db
+      .update(meals)
+      .set({ ...e, source: 'estimate' })
+      .where(eq(meals.id, id))
+      .returning()
+      .get()
+    this.store.changed()
+    return toMeal(row)
   }
 
   addMeal(input: NewMeal): Meal {

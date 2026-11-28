@@ -41,7 +41,10 @@ export const meals = sqliteTable(
     portion: text('portion').notNull(),
     kcal: integer('kcal'),
     proteinG: integer('protein_g'),
-    source: text('source').notNull()
+    source: text('source').notNull(),
+    kcalLow: integer('kcal_low'),
+    kcalHigh: integer('kcal_high'),
+    note: text('note')
   },
   (t) => [index('meals_date').on(t.date)]
 )
@@ -90,5 +93,11 @@ export const MIGRATIONS: string[] = [
     source TEXT NOT NULL
   );
   CREATE INDEX meals_date ON meals (date);
+  `,
+  // 2: calorie estimates from meal descriptions keep their range and a short note.
+  `
+  ALTER TABLE meals ADD COLUMN kcal_low INTEGER;
+  ALTER TABLE meals ADD COLUMN kcal_high INTEGER;
+  ALTER TABLE meals ADD COLUMN note TEXT;
   `
 ]

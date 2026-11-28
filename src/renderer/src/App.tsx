@@ -10,6 +10,7 @@ import { WeightPage } from './pages/WeightPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ProgressPage } from './pages/ProgressPage'
 import icon from './assets/icon.png'
+import { useThemeController } from './theme'
 
 const NAV: { page: Page; label: string }[] = [
   { page: 'week', label: 'Week' },
@@ -22,7 +23,9 @@ const NAV: { page: Page; label: string }[] = [
 
 export function App() {
   const { page, setPage } = useUi()
+  const settings = useSettings().data
   useSyncRefresh()
+  useThemeController(settings)
 
   return (
     <div className="shell">

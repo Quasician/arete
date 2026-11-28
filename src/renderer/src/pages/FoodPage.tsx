@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { addDays, toLocalDate } from '@shared/logic'
 import { MEAL_SLOTS, type Meal, type MealSlot, type Portion } from '@shared/types'
-import { api, errorText, keys, useInvalidate } from '../api'
+import { api, errorText, keys, useInvalidate, useSettings } from '../api'
 import { longDate } from '../format'
 
 const SLOT_LABEL: Record<MealSlot, string> = {
@@ -17,6 +17,7 @@ export function FoodPage() {
   const [date, setDate] = useState(today)
   const list = useQuery({ queryKey: keys.meals(date), queryFn: () => api.listMeals(date) })
   const meals = list.data ?? []
+  const canEstimate = !!useSettings().data?.secrets.anthropic
   const counted = meals.filter((m) => m.kcal != null)
   const kcal = counted.reduce((s, m) => s + (m.kcal ?? 0), 0)
   const protein = meals.reduce((s, m) => s + (m.proteinG ?? 0), 0)
@@ -47,23 +48,55 @@ export function FoodPage() {
       </header>
 
       <div className="banner muted">
-        Describe what you ate in plain words. In the next version, Arete will estimate calories and protein from the
-        description and fill in planned meals from your grocery rotation.
+        Describe what you ate in plain words.{' '}
+        {canEstimate
+          ? 'Arete estimates calories and protein from the description; type numbers yourself if you know them.'
+          : 'Add an Anthropic API key in Settings and Arete will estimate calories and protein from the description.'}
       </div>
 
       {list.error && <p className="error">{errorText(list.error)}</p>}
 
       <div className="meal-grid">
         {MEAL_SLOTS.map((slot) => (
-          <MealSlotCard key={slot} slot={slot} date={date} meals={meals.filter((m) => m.slot === slot)} />
+          <MealSlotCard
+            key={slot}
+            slot={slot}
+            date={date}
+            meals={meals.filter((m) => m.slot === slot)}
+            canEstimate={canEstimate}
+          />
         ))}
       </div>
     </div>
   )
 }
 
-function MealSlotCard({ slot, date, meals }: { slot: MealSlot; date: string; meals: Meal[] }) {
+function MealSlotCard({
+  slot,
+  date,
+  meals,
+  canEstimate
+}: {
+  slot: MealSlot
+  date: string
+  meals: Meal[]
+  canEstimate: boolean
+}) {
   const invalidate = useInvalidate()
+  const [estimating, setEstimating] = useState<number | null>(null)
+
+  async function estimate(id: number) {
+    setEstimating(id)
+    setError(null)
+    try {
+      await api.estimateMeal(id)
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setEstimating(null)
+      invalidate('meals')
+    }
+  }
   const [description, setDescription] = useState('')
   const [portion, setPortion] = useState<Portion>('normal')
   const [kcal, setKcal] = useState('')
@@ -74,7 +107,7 @@ function MealSlotCard({ slot, date, meals }: { slot: MealSlot; date: string; mea
     e.preventDefault()
     setError(null)
     try {
-      await api.addMeal({
+      const added = await api.addMeal({
         date,
         slot,
         description,
@@ -87,6 +120,7 @@ function MealSlotCard({ slot, date, meals }: { slot: MealSlot; date: string; mea
       setProtein('')
       setPortion('normal')
       invalidate('meals')
+      if (added.kcal == null && canEstimate) void estimate(added.id)
     } catch (err) {
       setError(errorText(err))
     }
@@ -101,9 +135,24 @@ function MealSlotCard({ slot, date, meals }: { slot: MealSlot; date: string; mea
             <div>{m.description}</div>
             <div className="subtle small">
               {m.portion !== 'normal' && `${m.portion} portion · `}
-              {m.kcal != null ? `${m.kcal} kcal` : 'no calories yet'}
-              {m.proteinG != null && ` · ${m.proteinG} g protein`}
+              {estimating === m.id
+                ? 'Estimating…'
+                : m.kcal != null
+                  ? m.source === 'estimate'
+                    ? `≈ ${m.kcal} kcal (${m.kcalLow}–${m.kcalHigh})`
+                    : `${m.kcal} kcal`
+                  : 'no calories yet'}
+              {m.proteinG != null && estimating !== m.id && ` · ${m.source === 'estimate' ? '≈ ' : ''}${m.proteinG} g protein`}
+              {m.kcal == null && canEstimate && estimating !== m.id && (
+                <>
+                  {' · '}
+                  <button className="link" onClick={() => estimate(m.id)}>
+                    Estimate
+                  </button>
+                </>
+              )}
             </div>
+            {m.note && m.source === 'estimate' && <div className="subtle small note">{m.note}</div>}
           </div>
           <button
             className="link danger"

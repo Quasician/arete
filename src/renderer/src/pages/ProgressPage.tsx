@@ -12,11 +12,13 @@ import {
   weeklyMinutes,
   type LiftHistory
 } from '@shared/progress'
-import type { Activity, PublicSettings, WeightEntry } from '@shared/types'
+import type { Activity, Meal, PublicSettings, WeightEntry } from '@shared/types'
+import { MIN_LOGGED_DAYS, MIN_MEALS_PER_DAY, WINDOW_DAYS, balanceAt, balanceSeries, loggedDays } from '@shared/energy'
 import { api, errorText, keys, useSettings } from '../api'
 import { useUi } from '../store'
 import { longDate, monthDay, weightFromKg } from '../format'
-import { Chart, baseOption, chartTheme } from '../components/Chart'
+import { Chart, baseOption } from '../components/Chart'
+import { useChartPalette } from '../theme'
 import { TREND_DAYS } from '../components/TrendCharts'
 import { useWide } from '../useWide'
 
@@ -28,9 +30,14 @@ export function ProgressPage() {
   const settings = useSettings().data
   const activities = useQuery({ queryKey: keys.activities(ALL, today), queryFn: () => api.listActivities(ALL, today) })
   const weights = useQuery({ queryKey: keys.weights(ALL, today), queryFn: () => api.listWeights(ALL, today) })
+  const mealsFrom = addDays(today, -7 * WEEKS - 21)
+  const meals = useQuery({
+    queryKey: ['meals', 'range', mealsFrom, today],
+    queryFn: () => api.listMealsRange(mealsFrom, today)
+  })
 
   if (!settings) return <div className="page" />
-  const error = activities.error ?? weights.error
+  const error = activities.error ?? weights.error ?? meals.error
 
   return (
     <div className="page">
@@ -47,6 +54,7 @@ export function ProgressPage() {
           <StrengthCard activities={activities.data ?? []} settings={settings} />
         </div>
         <div className="col">
+          <EnergyCard meals={meals.data ?? []} weights={weights.data ?? []} settings={settings} today={today} />
           <AerobicCard activities={activities.data ?? []} weights={weights.data ?? []} settings={settings} />
         </div>
       </div>
@@ -59,6 +67,7 @@ export function ProgressPage() {
 function MinutesCard({ activities, settings, today }: { activities: Activity[]; settings: PublicSettings; today: string }) {
   const setPage = useUi((s) => s.setPage)
   const wide = useWide()
+  const chartTheme = useChartPalette()
   const weeks = useMemo(
     () => weeklyMinutes(activities, settings.typicalMinutes, WEEKS, today),
     [activities, settings.typicalMinutes, today]
@@ -72,7 +81,7 @@ function MinutesCard({ activities, settings, today }: { activities: Activity[]; 
 
   const option = useMemo(
     () => ({
-      ...baseOption(),
+      ...baseOption(chartTheme),
       legend: { top: 0, right: 0, textStyle: { color: chartTheme.text } },
       xAxis: {
         type: 'category',
@@ -89,8 +98,8 @@ function MinutesCard({ activities, settings, today }: { activities: Activity[]; 
           itemStyle: { color: chartTheme.primary },
           markArea: {
             silent: true,
-            itemStyle: { color: 'rgba(127, 209, 166, 0.10)' },
-            label: { show: true, position: 'insideTopLeft', color: '#7fd1a6', formatter: 'Guideline 150–300' },
+            itemStyle: { color: chartTheme.ok, opacity: 0.1 },
+            label: { show: true, position: 'insideTopLeft', color: chartTheme.ok, formatter: 'Guideline 150–300' },
             data: [[{ yAxis: GUIDELINE_MIN }, { yAxis: GUIDELINE_MAX }]]
           },
           markLine:
@@ -100,7 +109,7 @@ function MinutesCard({ activities, settings, today }: { activities: Activity[]; 
                   silent: true,
                   symbol: 'none',
                   lineStyle: { color: chartTheme.accent, type: 'dashed' },
-                  label: { color: chartTheme.accent, formatter: `Your 8-week average: ${average}` },
+                  label: { color: chartTheme.accent, position: 'insideEndTop', formatter: `Your 8-week average: ${average}` },
                   data: [{ yAxis: average }]
                 }
         },
@@ -113,7 +122,7 @@ function MinutesCard({ activities, settings, today }: { activities: Activity[]; 
         }
       ]
     }),
-    [weeks, average]
+    [weeks, average, chartTheme]
   )
 
   return (
@@ -185,9 +194,10 @@ function liftValue(lift: LiftHistory, p: LiftHistory['points'][number], units: P
 }
 
 function LiftChart({ lift, units, height }: { lift: LiftHistory; units: PublicSettings['units']; height: number }) {
+  const chartTheme = useChartPalette()
   const option = useMemo(
     () => ({
-      ...baseOption(),
+      ...baseOption(chartTheme),
       xAxis: { type: 'time', axisLine: { lineStyle: { color: chartTheme.grid } } },
       yAxis: {
         type: 'value',
@@ -205,7 +215,7 @@ function LiftChart({ lift, units, height }: { lift: LiftHistory; units: PublicSe
         }
       ]
     }),
-    [lift, units]
+    [lift, units, chartTheme]
   )
   return <Chart option={option} height={height} />
 }
@@ -234,6 +244,97 @@ function LiftStats({ lift, units }: { lift: LiftHistory; units: PublicSettings['
   )
 }
 
+// ---------- calories vs. weight ----------
+
+function EnergyCard({
+  meals,
+  weights,
+  settings,
+  today
+}: {
+  meals: Meal[]
+  weights: WeightEntry[]
+  settings: PublicSettings
+  today: string
+}) {
+  const wide = useWide()
+  const chartTheme = useChartPalette()
+  const setPage = useUi((s) => s.setPage)
+  const days = useMemo(() => loggedDays(meals), [meals])
+  const trend = useMemo(() => morningTrend(weights, TREND_DAYS).trend, [weights])
+  const latest = useMemo(() => balanceAt(today, days, trend), [today, days, trend])
+  const series = useMemo(() => balanceSeries(days, trend, today, WEEKS), [days, trend, today])
+  const recentLogged = days.filter((d) => d.date > addDays(today, -WINDOW_DAYS)).length
+
+  const option = useMemo(
+    () => ({
+      ...baseOption(chartTheme),
+      legend: { top: 0, right: 0, textStyle: { color: chartTheme.text } },
+      xAxis: { type: 'category', data: series.map((p) => monthDay(p.end)), axisLine: { lineStyle: { color: chartTheme.grid } } },
+      yAxis: { type: 'value', name: 'kcal/day', scale: true, splitLine: { lineStyle: { color: chartTheme.grid } } },
+      series: [
+        {
+          name: 'Eaten (week average)',
+          type: 'bar',
+          data: series.map((p) => p.weekIntake),
+          itemStyle: { color: chartTheme.muted }
+        },
+        {
+          name: 'Burned (estimate)',
+          type: 'line',
+          data: series.map((p) => p.burn),
+          connectNulls: true,
+          symbolSize: 7,
+          lineStyle: { color: chartTheme.accent, width: 2 },
+          itemStyle: { color: chartTheme.accent }
+        }
+      ]
+    }),
+    [series, chartTheme]
+  )
+
+  const perWeek = latest ? weightFromKg((latest.weightChangeKg / WINDOW_DAYS) * 7, settings.units) : null
+
+  return (
+    <section className="card">
+      <h2>Calories vs. weight</h2>
+      {latest ? (
+        <>
+          <div className="mini-stats three">
+            <Mini value={`${latest.burn.toLocaleString()}`} label="estimated burn, kcal/day" />
+            <Mini value={`${latest.intake.toLocaleString()}`} label="eaten, kcal/day" />
+            <Mini
+              value={`${perWeek! > 0 ? '+' : ''}${perWeek!.toFixed(1)} ${settings.units}`}
+              label="trend weight per week"
+            />
+          </div>
+          <p className="subtle small">
+            Over the last {WINDOW_DAYS} days ({latest.loggedDays} logged), you ate about {latest.intake.toLocaleString()}{' '}
+            kcal a day and your trend weight {perWeek! <= 0 ? 'fell' : 'rose'} {Math.abs(perWeek!).toFixed(1)}{' '}
+            {settings.units} a week, so you burned about {latest.burn.toLocaleString()} kcal a day.
+          </p>
+          <Chart option={option} height={wide ? 300 : 240} />
+        </>
+      ) : (
+        <p className="subtle">
+          This needs {MIN_LOGGED_DAYS} logged days in the last {WINDOW_DAYS} (a day counts once it has at least{' '}
+          {MIN_MEALS_PER_DAY} meals with calories) plus your weight trend. So far: {recentLogged} of {MIN_LOGGED_DAYS}{' '}
+          days. Log meals on the{' '}
+          <button className="link" onClick={() => setPage('food')}>
+            Food
+          </button>{' '}
+          page.
+        </p>
+      )}
+      <p className="subtle small">
+        Burn = average eaten − weight change × 7,700 kcal per kg, spread over the {WINDOW_DAYS} days. Consistent logging
+        matters more than precise numbers: if you always under-count by the same amount, the burn reads low by the same
+        amount, so the gap between the two lines still tells you whether to eat more or less.
+      </p>
+    </section>
+  )
+}
+
 // ---------- aerobic fitness ----------
 
 function AerobicCard({
@@ -246,6 +347,7 @@ function AerobicCard({
   settings: PublicSettings
 }) {
   const wide = useWide()
+  const chartTheme = useChartPalette()
   const trend = useMemo(() => morningTrend(weights, TREND_DAYS).trend, [weights])
   const tests = useMemo(() => {
     const weightOn = (date: string) => {
@@ -268,11 +370,11 @@ function AerobicCard({
     const lines = [
       { p: 50, color: chartTheme.text },
       { p: 75, color: chartTheme.text },
-      { p: 90, color: '#7fd1a6' },
+      { p: 90, color: chartTheme.ok },
       { p: 95, color: chartTheme.accent }
     ]
     return {
-      ...baseOption(),
+      ...baseOption(chartTheme),
       xAxis: { type: 'time', axisLine: { lineStyle: { color: chartTheme.grid } } },
       yAxis: {
         type: 'value',
@@ -300,7 +402,7 @@ function AerobicCard({
         }
       ]
     }
-  }, [scored, ref])
+  }, [scored, ref, chartTheme])
 
   return (
     <section className="card">

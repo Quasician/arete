@@ -9,6 +9,8 @@ import {
   ACTIVITY_KINDS,
   type AgeGroup,
   type RowingTrainingLevel,
+  type SunLocation,
+  type ThemeMode,
   type TypicalMinutes,
   SECRET_NAMES,
   type PublicSettings,
@@ -26,6 +28,8 @@ interface StoredSettings {
   ageGroup: AgeGroup
   rowingLevel: RowingTrainingLevel
   openAtLogin: boolean
+  themeMode: ThemeMode
+  sunLocation: SunLocation | null
   plan: WeeklyPlan
   program: TrainingProgram | null
   secrets: Partial<Record<SecretName, string>>
@@ -38,6 +42,8 @@ const DEFAULTS: StoredSettings = {
   ageGroup: '20-29',
   rowingLevel: 'low',
   openAtLogin: true,
+  themeMode: 'auto',
+  sunLocation: null,
   plan: emptyPlan(),
   program: null,
   secrets: {},
@@ -59,6 +65,18 @@ function validTypicalMinutes(t: unknown): t is TypicalMinutes {
     Object.entries(t).every(
       ([k, v]) => ACTIVITY_KINDS.includes(k as never) && Number.isInteger(v) && (v as number) > 0 && (v as number) <= 1440
     )
+  )
+}
+
+function validLocation(l: unknown): l is SunLocation | null {
+  if (l === null) return true
+  const loc = l as SunLocation
+  return (
+    typeof loc === 'object' &&
+    typeof loc.lat === 'number' &&
+    typeof loc.lon === 'number' &&
+    Math.abs(loc.lat) <= 90 &&
+    Math.abs(loc.lon) <= 180
   )
 }
 
@@ -93,6 +111,8 @@ export class Settings {
         ageGroup: parsed.ageGroup === '30-39' ? '30-39' : '20-29',
         rowingLevel: parsed.rowingLevel === 'high' ? 'high' : 'low',
         openAtLogin: parsed.openAtLogin !== false,
+        themeMode: parsed.themeMode === 'light' || parsed.themeMode === 'dark' ? parsed.themeMode : 'auto',
+        sunLocation: validLocation(parsed.sunLocation) ? (parsed.sunLocation ?? null) : null,
         plan: validPlan(parsed.plan) ? parsed.plan : emptyPlan(),
         program: validProgram(parsed.program) ? (parsed.program ?? null) : null,
         secrets: parsed.secrets ?? {},
@@ -134,6 +154,8 @@ export class Settings {
       ageGroup: this.data.ageGroup,
       rowingLevel: this.data.rowingLevel,
       openAtLogin: this.data.openAtLogin,
+      themeMode: this.data.themeMode,
+      sunLocation: this.data.sunLocation,
       plan: this.data.plan,
       program: this.data.program,
       secrets,
@@ -162,6 +184,14 @@ export class Settings {
     if (patch.openAtLogin !== undefined) {
       if (typeof patch.openAtLogin !== 'boolean') throw new Error('Invalid start-up setting')
       this.data.openAtLogin = patch.openAtLogin
+    }
+    if (patch.themeMode !== undefined) {
+      if (!['auto', 'light', 'dark'].includes(patch.themeMode)) throw new Error('Invalid theme')
+      this.data.themeMode = patch.themeMode
+    }
+    if (patch.sunLocation !== undefined) {
+      if (!validLocation(patch.sunLocation)) throw new Error('Invalid location')
+      this.data.sunLocation = patch.sunLocation
     }
     if (patch.plan !== undefined) {
       if (!validPlan(patch.plan)) throw new Error('Invalid weekly plan')

@@ -7,6 +7,7 @@ import { syncAll } from './sync/index.ts'
 import { readWithingsExport } from './importers/withings.ts'
 import { checkForUpdates, getUpdateStatus, installUpdate } from './updater.ts'
 import { applyOpenAtLogin } from './startup.ts'
+import { estimateMeal } from './estimate.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
 import type {
   ImportResult,
@@ -73,6 +74,15 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
   })
 
   handle('listMeals', (date: string) => repo.listMeals(date))
+  handle('listMealsRange', (from: string, to: string) => repo.listMealsRange(from, to))
+  handle('estimateMeal', async (id: number) => {
+    const key = settings.getSecret('anthropic')
+    if (!key) throw new Error('Add an Anthropic API key in Settings to estimate calories.')
+    const meal = repo.getMeal(id)
+    if (!meal) throw new Error('That meal no longer exists.')
+    const estimate = await estimateMeal(key, meal)
+    return repo.saveMealEstimate(id, estimate)
+  })
   handle('addMeal', (input: NewMeal) => repo.addMeal(input))
   handle('deleteMeal', (id: number) => repo.deleteMeal(id))
 

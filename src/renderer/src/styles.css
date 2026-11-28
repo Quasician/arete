@@ -1,4 +1,8 @@
-:root {
+/* ---------- lighting themes ----------
+   theme.ts sets <html data-theme> from the time of day: dawn, day and golden
+   are light; dusk and night are dark. Chart colours live in theme.ts. */
+:root,
+:root[data-theme='night'] {
   --bg: #0b1020;
   --bg-2: #10172d;
   --panel: rgba(20, 27, 51, 0.82);
@@ -7,12 +11,146 @@
   --subtle: #8e9abb;
   --accent: #f2c86b;
   --accent-soft: rgba(242, 200, 107, 0.14);
+  --accent-line: rgba(242, 200, 107, 0.35);
   --primary: #7aa7ff;
   --primary-soft: rgba(122, 167, 255, 0.14);
+  --primary-line: rgba(122, 167, 255, 0.3);
+  --on-primary: #0b1020;
   --ok: #7fd1a6;
+  --ok-soft: rgba(127, 209, 166, 0.13);
+  --ok-line: rgba(127, 209, 166, 0.4);
   --danger: #ff8a8a;
+  --sidebar: rgba(8, 12, 26, 0.55);
+  --field: rgba(8, 12, 26, 0.6);
+  --hover: rgba(255, 255, 255, 0.04);
+  --line: rgba(255, 255, 255, 0.06);
+  --tile: rgba(255, 255, 255, 0.03);
+  --track: rgba(255, 255, 255, 0.08);
+  --glow-a: rgba(122, 167, 255, 0.12);
+  --glow-b: rgba(242, 200, 107, 0.07);
+  --kind-lift: #f2c86b;
+  --kind-row: #7aa7ff;
+  --kind-climb: #c79bff;
+  --kind-hike: #7fd1a6;
+  --kind-run: #ff9f7a;
+  --kind-walk: #9fd6e8;
   --radius: 12px;
   color-scheme: dark;
+}
+
+:root[data-theme='dusk'] {
+  --bg: #1b1633;
+  --bg-2: #120f26;
+  --panel: rgba(36, 29, 66, 0.8);
+  --panel-border: #372d60;
+  --text: #ede9f8;
+  --subtle: #a69fc6;
+  --accent: #f3b27a;
+  --accent-soft: rgba(243, 178, 122, 0.15);
+  --accent-line: rgba(243, 178, 122, 0.4);
+  --primary: #a796ff;
+  --primary-soft: rgba(167, 150, 255, 0.15);
+  --primary-line: rgba(167, 150, 255, 0.32);
+  --on-primary: #160f2e;
+  --ok: #86d4ad;
+  --ok-soft: rgba(134, 212, 173, 0.13);
+  --ok-line: rgba(134, 212, 173, 0.4);
+  --sidebar: rgba(14, 10, 30, 0.5);
+  --field: rgba(14, 10, 30, 0.55);
+  --glow-a: rgba(243, 140, 122, 0.14);
+  --glow-b: rgba(167, 150, 255, 0.12);
+  color-scheme: dark;
+}
+
+:root[data-theme='dawn'],
+:root[data-theme='day'],
+:root[data-theme='golden'] {
+  --on-primary: #ffffff;
+  --danger: #c94a4a;
+  --hover: rgba(30, 40, 80, 0.05);
+  --line: rgba(30, 40, 80, 0.09);
+  --tile: rgba(30, 40, 80, 0.035);
+  --track: rgba(30, 40, 80, 0.1);
+  --field: #ffffff;
+  --kind-lift: #a8780f;
+  --kind-row: #2f5fd0;
+  --kind-climb: #7b4fd1;
+  --kind-hike: #2f8a5c;
+  --kind-run: #c8582c;
+  --kind-walk: #22809e;
+  color-scheme: light;
+}
+
+:root[data-theme='dawn'] {
+  --bg: #f7eef0;
+  --bg-2: #e8eaf6;
+  --panel: rgba(255, 255, 255, 0.78);
+  --panel-border: #e2d9e6;
+  --text: #2a2440;
+  --subtle: #6c6584;
+  --accent: #c27a4a;
+  --accent-soft: rgba(194, 122, 74, 0.13);
+  --accent-line: rgba(194, 122, 74, 0.4);
+  --primary: #4c63c9;
+  --primary-soft: rgba(76, 99, 201, 0.1);
+  --primary-line: rgba(76, 99, 201, 0.28);
+  --ok: #2f8f62;
+  --ok-soft: rgba(47, 143, 98, 0.1);
+  --ok-line: rgba(47, 143, 98, 0.35);
+  --sidebar: rgba(255, 255, 255, 0.5);
+  --glow-a: rgba(255, 170, 150, 0.35);
+  --glow-b: rgba(160, 175, 255, 0.3);
+}
+
+:root[data-theme='day'] {
+  --bg: #eef3fb;
+  --bg-2: #e2eaf6;
+  --panel: rgba(255, 255, 255, 0.86);
+  --panel-border: #d5ddec;
+  --text: #1b2540;
+  --subtle: #5d6a88;
+  --accent: #b9861f;
+  --accent-soft: rgba(214, 160, 52, 0.15);
+  --accent-line: rgba(185, 134, 31, 0.4);
+  --primary: #2f5fd0;
+  --primary-soft: rgba(47, 95, 208, 0.1);
+  --primary-line: rgba(47, 95, 208, 0.28);
+  --ok: #2f9a68;
+  --ok-soft: rgba(47, 154, 104, 0.1);
+  --ok-line: rgba(47, 154, 104, 0.35);
+  --sidebar: rgba(255, 255, 255, 0.55);
+  --glow-a: rgba(122, 167, 255, 0.28);
+  --glow-b: rgba(255, 214, 140, 0.22);
+}
+
+:root[data-theme='golden'] {
+  --bg: #f8eedd;
+  --bg-2: #f0dfc2;
+  --panel: rgba(255, 252, 245, 0.82);
+  --panel-border: #e8d5b4;
+  --text: #2e2416;
+  --subtle: #76664c;
+  --accent: #b8741a;
+  --accent-soft: rgba(214, 140, 40, 0.15);
+  --accent-line: rgba(184, 116, 26, 0.42);
+  --primary: #3d5bb8;
+  --primary-soft: rgba(61, 91, 184, 0.1);
+  --primary-line: rgba(61, 91, 184, 0.28);
+  --ok: #3a8a5a;
+  --ok-soft: rgba(58, 138, 90, 0.1);
+  --ok-line: rgba(58, 138, 90, 0.35);
+  --sidebar: rgba(255, 250, 240, 0.5);
+  --glow-a: rgba(255, 170, 90, 0.35);
+  --glow-b: rgba(255, 120, 90, 0.18);
+}
+
+/* Fade between themes when the phase changes. */
+.theme-fade,
+.theme-fade * {
+  transition:
+    background-color 1.5s ease,
+    border-color 1.5s ease,
+    color 1.5s ease !important;
 }
 
 * {
@@ -31,8 +169,8 @@ body {
   font-size: 14px;
   color: var(--text);
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(122, 167, 255, 0.12), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(242, 200, 107, 0.07), transparent 60%),
+    radial-gradient(1200px 600px at 80% -10%, var(--glow-a), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, var(--glow-b), transparent 60%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
   background-attachment: fixed;
 }
@@ -93,7 +231,7 @@ a {
   gap: 18px;
   padding: 22px 14px;
   border-right: 1px solid var(--panel-border);
-  background: rgba(8, 12, 26, 0.55);
+  background: var(--sidebar);
 }
 
 .brand {
@@ -128,7 +266,7 @@ nav {
 }
 .nav-item:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover);
 }
 .nav-item.active {
   color: var(--text);
@@ -194,20 +332,20 @@ nav {
 
 .banner {
   background: var(--accent-soft);
-  border: 1px solid rgba(242, 200, 107, 0.25);
+  border: 1px solid var(--accent-line);
   border-radius: var(--radius);
   padding: 12px 16px;
 }
 .banner.muted {
   background: var(--primary-soft);
-  border-color: rgba(122, 167, 255, 0.22);
+  border-color: var(--primary-line);
   color: var(--subtle);
 }
 .progress {
   margin-top: 8px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--track);
   overflow: hidden;
 }
 .progress > div {
@@ -223,7 +361,7 @@ nav {
   border-radius: 8px;
   border: 1px solid transparent;
   background: var(--primary);
-  color: #0b1020;
+  color: var(--on-primary);
   font-weight: 600;
   cursor: pointer;
 }
@@ -238,7 +376,7 @@ nav {
   font-weight: 500;
 }
 .button.ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--hover);
 }
 .button.small {
   padding: 6px 10px;
@@ -265,7 +403,7 @@ input,
 select {
   font: inherit;
   color: var(--text);
-  background: rgba(8, 12, 26, 0.6);
+  background: var(--field);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 7px 9px;
@@ -273,7 +411,7 @@ select {
 }
 input:focus,
 select:focus {
-  outline: 2px solid rgba(122, 167, 255, 0.45);
+  outline: 2px solid var(--primary-line);
   outline-offset: 0;
 }
 input[type='checkbox'] {
@@ -331,12 +469,12 @@ label {
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--hover);
   color: var(--subtle);
   margin-left: 8px;
 }
 .pill.ok {
-  background: rgba(127, 209, 166, 0.14);
+  background: var(--ok-soft);
   color: var(--ok);
 }
 
@@ -358,8 +496,8 @@ label {
   min-height: 220px;
 }
 .day.today {
-  border-color: rgba(242, 200, 107, 0.55);
-  box-shadow: 0 0 0 1px rgba(242, 200, 107, 0.2);
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 1px var(--accent-soft);
 }
 .day header {
   display: flex;
@@ -392,8 +530,8 @@ label {
   color: var(--subtle);
 }
 .chip.done {
-  border-color: rgba(127, 209, 166, 0.4);
-  background: rgba(127, 209, 166, 0.12);
+  border-color: var(--ok-line);
+  background: var(--ok-soft);
   color: var(--ok);
 }
 .chip.clickable {
@@ -435,14 +573,14 @@ label {
   grid-template-columns: 1fr auto;
   gap: 2px 12px;
   padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--line);
 }
 .activity.compact {
   grid-template-columns: 1fr;
   padding: 6px 8px;
   border: 0;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tile);
 }
 .activity-main {
   display: flex;
@@ -481,22 +619,22 @@ label {
   font-weight: 600;
 }
 .kind-lift {
-  color: #f2c86b;
+  color: var(--kind-lift);
 }
 .kind-row {
-  color: #7aa7ff;
+  color: var(--kind-row);
 }
 .kind-climb {
-  color: #c79bff;
+  color: var(--kind-climb);
 }
 .kind-hike {
-  color: #7fd1a6;
+  color: var(--kind-hike);
 }
 .kind-run {
-  color: #ff9f7a;
+  color: var(--kind-run);
 }
 .kind-walk {
-  color: #9fd6e8;
+  color: var(--kind-walk);
 }
 .kind-other {
   color: var(--subtle);
@@ -534,7 +672,7 @@ label {
 }
 .table td {
   padding: 8px 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--line);
 }
 
 /* ---------- food ---------- */
@@ -549,7 +687,7 @@ label {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--line);
 }
 .meal-form {
   display: flex;
@@ -565,7 +703,7 @@ label {
   flex-direction: column;
   gap: 8px;
   padding: 12px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--line);
 }
 .key-row:first-of-type {
   border-top: 0;
@@ -728,7 +866,7 @@ details.card[open] > summary {
 .protocol {
   margin-top: 16px;
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--line);
 }
 .protocol ol {
   margin: 6px 0 0;
@@ -784,4 +922,8 @@ details.card[open] > summary {
 }
 .settings-grid .segmented {
   justify-self: start;
+}
+.meal .note {
+  font-style: italic;
+  opacity: 0.85;
 }

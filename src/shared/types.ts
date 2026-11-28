@@ -94,6 +94,11 @@ export interface Meal {
   kcal: number | null
   proteinG: number | null
   source: 'plan' | 'manual' | 'estimate'
+  /** Range around an estimate, when the calories were estimated. */
+  kcalLow: number | null
+  kcalHigh: number | null
+  /** What the estimate assumed, in a few words. */
+  note: string | null
 }
 
 export interface NewMeal {
@@ -124,10 +129,19 @@ export type AgeGroup = '20-29' | '30-39'
 /** Concept2's VO2max formula differs for highly trained rowers. */
 export type RowingTrainingLevel = 'low' | 'high'
 
+/** auto: colours follow the time of day; light or dark: fixed. */
+export type ThemeMode = 'auto' | 'light' | 'dark'
+
+/** Used only to work out sunrise and sunset for the lighting. */
+export interface SunLocation {
+  lat: number
+  lon: number
+}
+
 /** Typical minutes for sessions logged without a duration, by activity type. */
 export type TypicalMinutes = Partial<Record<ActivityKind, number>>
 
-export const SECRET_NAMES = ['hevy', 'concept2'] as const
+export const SECRET_NAMES = ['hevy', 'concept2', 'anthropic'] as const
 export type SecretName = (typeof SECRET_NAMES)[number]
 
 export type SyncSource = 'hevy' | 'concept2'
@@ -145,6 +159,9 @@ export interface PublicSettings {
   rowingLevel: RowingTrainingLevel
   /** Start Arete when Windows starts. */
   openAtLogin: boolean
+  themeMode: ThemeMode
+  /** Null means a rough guess from the time zone. */
+  sunLocation: SunLocation | null
   plan: WeeklyPlan
   program: TrainingProgram | null
   /** Which keys are saved. The keys themselves never leave the main process. */
@@ -159,6 +176,8 @@ export interface SettingsPatch {
   ageGroup?: AgeGroup
   rowingLevel?: RowingTrainingLevel
   openAtLogin?: boolean
+  themeMode?: ThemeMode
+  sunLocation?: SunLocation | null
   plan?: WeeklyPlan
   program?: TrainingProgram | null
 }
@@ -228,6 +247,9 @@ export interface AreteApi {
   importWithings(): Promise<ImportResult | null>
 
   listMeals(date: string): Promise<Meal[]>
+  listMealsRange(from: string, to: string): Promise<Meal[]>
+  /** Estimates calories and protein from the meal's description. Needs an Anthropic key. */
+  estimateMeal(id: number): Promise<Meal>
   addMeal(input: NewMeal): Promise<Meal>
   deleteMeal(id: number): Promise<void>
 

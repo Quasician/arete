@@ -3,7 +3,8 @@ import { MORNING_BEFORE_HOUR, formatPace, readingHour } from '@shared/logic'
 import type { Activity, Units, WeightEntry } from '@shared/types'
 import type { MorningPoint, Point } from '@shared/logic'
 import { weightFromKg } from '../format'
-import { Chart, baseOption, chartTheme } from './Chart'
+import { Chart, baseOption } from './Chart'
+import { useChartPalette } from '../theme'
 
 export const TREND_DAYS = 7
 
@@ -22,12 +23,13 @@ export function WeightChart({
   height?: number
   compact?: boolean
 }) {
+  const chartTheme = useChartPalette()
   const option = useMemo(() => {
     const conv = (kg: number) => Number(weightFromKg(kg, units).toFixed(1))
     return {
-      ...baseOption(),
+      ...baseOption(chartTheme),
       legend: compact ? undefined : { top: 0, right: 0, textStyle: { color: chartTheme.text } },
-      grid: compact ? { left: 40, right: 8, top: 12, bottom: 24 } : (baseOption().grid as object),
+      grid: compact ? { left: 40, right: 8, top: 12, bottom: 24 } : (baseOption(chartTheme).grid as object),
       xAxis: { type: 'time', axisLine: { lineStyle: { color: chartTheme.grid } } },
       yAxis: {
         type: 'value',
@@ -70,15 +72,16 @@ export function WeightChart({
         }
       ]
     }
-  }, [entries, daily, trend, units, compact])
+  }, [entries, daily, trend, units, compact, chartTheme])
   return <Chart option={option} height={height} />
 }
 
 export function PaceChart({ rows, height = 240 }: { rows: Activity[]; height?: number }) {
+  const chartTheme = useChartPalette()
   const option = useMemo(() => {
     const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
     return {
-      ...baseOption(),
+      ...baseOption(chartTheme),
       xAxis: {
         type: 'category',
         data: sorted.map((r) => r.date.slice(5)),
@@ -92,7 +95,7 @@ export function PaceChart({ rows, height = 240 }: { rows: Activity[]; height?: n
         axisLabel: { formatter: (v: number) => formatPace(v).replace(' /500m', '') }
       },
       tooltip: {
-        ...(baseOption().tooltip as object),
+        ...(baseOption(chartTheme).tooltip as object),
         valueFormatter: (v: number) => formatPace(v)
       },
       series: [
@@ -105,6 +108,6 @@ export function PaceChart({ rows, height = 240 }: { rows: Activity[]; height?: n
         }
       ]
     }
-  }, [rows])
+  }, [rows, chartTheme])
   return <Chart option={option} height={height} />
 }

@@ -8,14 +8,18 @@ import {
   type AgeGroup,
   type PublicSettings,
   type RowingTrainingLevel,
+  type ThemeMode,
   type TypicalMinutes,
   type UpdateStatus,
   type SecretName,
+  type SyncStatus,
   type TrainingProgram,
   type WeeklyPlan
 } from '@shared/types'
 import { api, errorText, keys, useSettings, useUpdateSettings, useUpdateStatus } from '../api'
 import { timeAgo } from '../format'
+import { guessLocation, sunTimes } from '@shared/sun'
+import { useTheme, type ThemeName } from '../theme'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
@@ -24,6 +28,11 @@ const KEY_HELP: Record<SecretName, { label: string; help: string; url: string }>
     label: 'Hevy API key',
     help: 'Imports your lifting workouts. Needs Hevy Pro; create the key in Hevy’s web app under Settings → Developer.',
     url: 'https://hevy.com/settings?developer'
+  },
+  anthropic: {
+    label: 'Anthropic API key',
+    help: 'Estimates calories and protein from meal descriptions on the Food page (a fraction of a cent per meal). Create one at console.anthropic.com under API keys.',
+    url: 'https://console.anthropic.com/settings/keys'
   },
   concept2: {
     label: 'Concept2 Logbook token',
@@ -48,6 +57,7 @@ export function SettingsPage() {
           <KeysCard settings={settings.data} />
           <ProgramCard program={settings.data.program} />
           <FitnessCard settings={settings.data} />
+          <LightingCard settings={settings.data} />
           <AppCard settings={settings.data} />
         </div>
         <div className="col">
@@ -67,7 +77,12 @@ function KeysCard({ settings }: { settings: PublicSettings }) {
         <p className="error">Windows encryption isn’t available, so keys can’t be saved safely right now.</p>
       )}
       {(Object.keys(KEY_HELP) as SecretName[]).map((name) => (
-        <KeyRow key={name} name={name} saved={settings.secrets[name]} status={settings.lastSync[name]} />
+        <KeyRow
+          key={name}
+          name={name}
+          saved={settings.secrets[name]}
+          status={name === 'anthropic' ? undefined : settings.lastSync[name]}
+        />
       ))}
     </section>
   )
@@ -80,7 +95,7 @@ function KeyRow({
 }: {
   name: SecretName
   saved: boolean
-  status?: PublicSettings['lastSync'][SecretName]
+  status?: SyncStatus
 }) {
   const qc = useQueryClient()
   const [value, setValue] = useState('')
@@ -93,7 +108,7 @@ function KeyRow({
       const updated = await api.setSecret(name, next)
       qc.setQueryData(keys.settings, updated)
       setValue('')
-      if (next) void api.syncNow().then(() => qc.invalidateQueries())
+      if (next && name !== 'anthropic') void api.syncNow().then(() => qc.invalidateQueries())
     } catch (err) {
       setError(errorText(err))
     }
@@ -334,6 +349,65 @@ function TypicalMinutesCard({ settings }: { settings: PublicSettings }) {
       {update.error && <p className="error small">{errorText(update.error)}</p>}
     </section>
   )
+}
+
+function LightingCard({ settings }: { settings: PublicSettings }) {
+  const update = useUpdateSettings()
+  const theme = useTheme((t) => t.name)
+  const [lat, setLat] = useState(settings.sunLocation ? String(settings.sunLocation.lat) : '')
+  const [lon, setLon] = useState(settings.sunLocation ? String(settings.sunLocation.lon) : '')
+  const loc = settings.sunLocation ?? guessLocation()
+  const { sunrise, sunset } = sunTimes(new Date(), loc)
+  const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+  function saveLocation(e: FormEvent) {
+    e.preventDefault()
+    const la = Number(lat)
+    const lo = Number(lon)
+    if (lat.trim() === '' && lon.trim() === '') update.mutate({ sunLocation: null })
+    else if (isFinite(la) && isFinite(lo)) update.mutate({ sunLocation: { lat: la, lon: lo } })
+  }
+
+  return (
+    <section className="card">
+      <h2>Lighting</h2>
+      <div className="segmented">
+        {(
+          [
+            ['auto', 'Follow the time of day'],
+            ['light', 'Always light'],
+            ['dark', 'Always dark']
+          ] as [ThemeMode, string][]
+        ).map(([m, label]) => (
+          <button key={m} className={settings.themeMode === m ? 'active' : ''} onClick={() => update.mutate({ themeMode: m })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="subtle small">
+        Now: {THEME_LABELS[theme]}. Light from about 45 minutes before sunrise, warm in the two hours before sunset, then
+        dusk and night colours. Today's sunrise is {time(sunrise)} and sunset {time(sunset)}
+        {settings.sunLocation ? '.' : ', estimated from your time zone; set your location for exact times.'}
+      </p>
+      <form className="form-row tight" onSubmit={saveLocation}>
+        <input className="narrow" placeholder="Latitude" value={lat} onChange={(e) => setLat(e.target.value)} />
+        <input className="narrow" placeholder="Longitude" value={lon} onChange={(e) => setLon(e.target.value)} />
+        <button className="button small ghost" type="submit">
+          Save location
+        </button>
+      </form>
+      <p className="subtle small">Only used to work out sunrise and sunset; it stays on this PC. Example: 37.43, -121.90.</p>
+      {update.error && <p className="error small">{errorText(update.error)}</p>}
+    </section>
+  )
+}
+
+const THEME_LABELS: Record<ThemeName, string> = {
+  dawn: 'dawn',
+  day: 'daylight',
+  golden: 'golden hour',
+  dusk: 'dusk',
+  night: 'night'
 }
 
 function AppCard({ settings }: { settings: PublicSettings }) {
