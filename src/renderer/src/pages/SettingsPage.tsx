@@ -420,6 +420,15 @@ function AppCard({ settings }: { settings: PublicSettings }) {
   const info = useQuery({ queryKey: ['appInfo'], queryFn: () => api.appInfo() }).data
   const status = useUpdateStatus()
   const [checking, setChecking] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  async function copyDiagnostics() {
+    try {
+      setCopied((await api.copyDiagnostics()) ? 'Copied. Paste it into your chat with Claude.' : "Couldn't copy.")
+    } catch (err) {
+      setCopied(`Couldn't gather the diagnostics: ${errorText(err)}`)
+    }
+  }
 
   async function check() {
     setChecking(true)
@@ -457,6 +466,18 @@ function AppCard({ settings }: { settings: PublicSettings }) {
             Check for updates
           </button>
         )}
+      </div>
+      <div className="update-row">
+        <button
+          className="button small ghost"
+          title="Copies the version, settings (nothing private) and recent log, to paste into a chat with Claude when something's wrong"
+          onClick={copyDiagnostics}
+        >
+          Copy diagnostics
+        </button>
+        <span className="subtle small">
+          {copied ?? 'Version, settings and the recent log, with no keys, meals, weights or names.'}
+        </span>
       </div>
       {update.error && <p className="error small">{errorText(update.error)}</p>}
     </section>

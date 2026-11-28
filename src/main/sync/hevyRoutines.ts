@@ -37,8 +37,24 @@ async function call<T>(key: string, method: string, url: string, body?: unknown)
     signal: AbortSignal.timeout(TIMEOUT_MS)
   })
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) throw new Error('Hevy rejected the key. Check it in Settings.')
-    throw new Error(`Hevy returned an error (${res.status}).`)
+    if (res.status === 401) throw new Error('Hevy rejected the key. Check it in Settings.')
+    // Hevy explains what it didn't accept; show that (it's Hevy's own message, not your data).
+    let detail = ''
+    try {
+      const body = (await res.text()).replace(/\s+/g, ' ').trim()
+      const parsed = (() => {
+        try {
+          const j = JSON.parse(body)
+          return typeof j?.error === 'string' ? j.error : typeof j?.message === 'string' ? j.message : body
+        } catch {
+          return body
+        }
+      })()
+      detail = parsed ? `: ${parsed.slice(0, 240)}` : ''
+    } catch {
+      // no body
+    }
+    throw new Error(`Hevy returned an error (${res.status})${detail}`)
   }
   const text = await res.text()
   return (text ? JSON.parse(text) : null) as T
@@ -91,28 +107,42 @@ export async function listRoutines(key: string): Promise<{ routines: Routine[]; 
   return { routines, raw }
 }
 
-export async function updateRoutine(key: string, r: Routine): Promise<void> {
-  await call(key, 'PUT', `/v1/routines/${encodeURIComponent(r.id)}`, {
-    routine: {
+/** Leaves out empty fields: Hevy rejects fields that don't fit the exercise type. */
+function compact<T extends Record<string, unknown>>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined)) as Partial<T>
+}
+
+/** The body for PUT /v1/routines/{id}. */
+export function routineBody(r: Routine) {
+  return {
+    routine: compact({
       title: r.title,
-      notes: r.notes,
-      exercises: r.exercises.map((e) => ({
-        exercise_template_id: e.exercise_template_id,
-        superset_id: e.superset_id,
-        rest_seconds: e.rest_seconds,
-        notes: e.notes,
-        sets: e.sets.map((s) => ({
-          type: s.type,
-          weight_kg: s.weight_kg ?? null,
-          reps: s.reps ?? null,
-          distance_meters: s.distance_meters ?? null,
-          duration_seconds: s.duration_seconds ?? null,
-          custom_metric: s.custom_metric ?? null,
-          rep_range: s.rep_range ?? null
-        }))
-      }))
-    }
-  })
+      notes: r.notes || null,
+      exercises: r.exercises.map((e) =>
+        compact({
+          exercise_template_id: e.exercise_template_id,
+          superset_id: e.superset_id,
+          rest_seconds: e.rest_seconds,
+          notes: e.notes || null,
+          sets: e.sets.map((s) =>
+            compact({
+              type: s.type,
+              weight_kg: s.weight_kg,
+              reps: s.reps,
+              distance_meters: s.distance_meters,
+              duration_seconds: s.duration_seconds,
+              custom_metric: s.custom_metric,
+              rep_range: s.rep_range
+            })
+          )
+        })
+      )
+    })
+  }
+}
+
+export async function updateRoutine(key: string, r: Routine): Promise<void> {
+  await call(key, 'PUT', `/v1/routines/${encodeURIComponent(r.id)}`, routineBody(r))
 }
 
 /** Keeps a copy of the routines as Hevy returned them, before the first change of a day. */

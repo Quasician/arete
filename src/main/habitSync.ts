@@ -13,6 +13,7 @@ import { reviewText, weeklyReview } from '../shared/review.ts'
 import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 import { Todoist } from './todoist.ts'
+import { log } from './log.ts'
 
 export function inRecovery(settings: Settings, today: string): boolean {
   return !!settings.recoveryUntil && today <= settings.recoveryUntil
@@ -37,6 +38,8 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
       //    the window meanwhile aren't overwritten.
       const tasks = await td.habitTasks()
       const merged = mergeTodoistHabits(settings.habits, tasks, today)
+      if (merged.added.length || merged.paused.length)
+        log('todoist habits merged', `${tasks.length} @habit tasks`, `${merged.added.length} added`, `${merged.paused.length} paused`)
       if (JSON.stringify(merged.habits) !== JSON.stringify(settings.habits)) settings.update({ habits: merged.habits })
 
       // 2. Tidy away the one-off daily tasks earlier versions made.
@@ -60,6 +63,7 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
             repo.addHabitCheckIn(h.kind, date, h.name, minutes)
           }
           repo.saveHabitTask(h.id, date, c.taskId, 'closed')
+          log('todoist tick logged', h.id, date)
         }
       }
 
@@ -71,6 +75,7 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
         if (!task) continue
         await td.closeTask(task.id)
         repo.saveHabitTask(h.id, today, task.id, 'closed')
+        log('todoist task ticked', h.id, today)
       }
 
       // 5. Habits made in Arete get one recurring task, so Praxis can plan around them.
@@ -95,6 +100,7 @@ export function syncHabitTasks(settings: Settings, repo: Repo, now = new Date())
       }
       return null
     } catch (err) {
+      log('todoist habits FAILED', err)
       return err instanceof Error ? err.message : String(err)
     }
   })().finally(() => {

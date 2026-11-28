@@ -22,6 +22,10 @@ In Aristotle's ethics, *arete* (excellence) isn't inborn. It's built through rep
 
 Planned next: planned meals from the grocery rotation and a live Withings connection.
 
+## Diagnostics
+
+Arete keeps a log (`arete.log` in its data folder: startups, syncs, Todoist and Hevy changes, updates and errors, never keys, meals, weights or names). **Settings → App → Copy diagnostics** puts the version, settings (nothing private), counts and the recent log on the clipboard to paste into a chat when something goes wrong.
+
 ## Privacy
 
 Everything stays on your PC, in Arete's data folder (`%APPDATA%\Arete`): the database (`arete.sqlite`) and `settings.json`. API keys are encrypted with Windows' own protection (DPAPI, through Electron's `safeStorage`) and never reach the app's window. Nothing personal belongs in this repo, and `.gitignore` blocks common data and secret files as a safety net.

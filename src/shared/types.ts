@@ -325,6 +325,11 @@ export interface AreteApi {
   /** Writes the next targets into the Hevy routines now. */
   applyProgression(): Promise<Change[]>
 
+  /** Puts the version, settings (nothing private) and recent log on the clipboard, for help with problems. */
+  copyDiagnostics(): Promise<boolean>
+  /** Records an error from the window in Arete's log. */
+  logWindowError(message: string): Promise<void>
+
   syncNow(): Promise<SyncReport>
   onSynced(callback: (report: SyncReport) => void): () => void
 }

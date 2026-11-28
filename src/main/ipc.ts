@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron'
+import { app, clipboard, dialog, ipcMain, type BrowserWindow } from 'electron'
+import { log } from './log.ts'
+import { diagnostics } from './diagnostics.ts'
 import type { Repo } from './repo.ts'
 import type { Settings } from './settings.ts'
 import { syncAll } from './sync/index.ts'
@@ -26,8 +28,16 @@ import type {
 export const SYNCED_EVENT = 'arete:synced'
 
 export function registerIpc(repo: Repo, settings: Settings, getWindow: () => BrowserWindow | null): void {
+  // Every failure the window sees also goes in the log, with which action it was.
   const handle = <A extends unknown[], R>(channel: string, fn: (...args: A) => R) =>
-    ipcMain.handle(`arete:${channel}`, (_event, ...args) => fn(...(args as A)))
+    ipcMain.handle(`arete:${channel}`, async (_event, ...args) => {
+      try {
+        return await fn(...(args as A))
+      } catch (err) {
+        log('action', channel, 'FAILED', err)
+        throw err
+      }
+    })
 
   handle('appInfo', () => ({ version: app.getVersion(), packaged: app.isPackaged }))
   handle('getUpdateStatus', () => getUpdateStatus())
@@ -77,6 +87,7 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
     const fileName = path.basename(file)
     const rows = readWithingsExport(fileName, new Uint8Array(fs.readFileSync(file)))
     const { added, updated } = repo.importWithingsWeights(rows)
+    log('withings import', `${rows.length} readings`, `${added} added`, `${updated} updated`)
     const dates = rows.map((r) => r.date).sort()
     return { fileName, total: rows.length, added, updated, from: dates[0] ?? null, to: dates.at(-1) ?? null }
   })
@@ -129,6 +140,15 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
   handle('applyProgression', () => applyProgression(settings, repo, app.getPath('userData')))
 
   handle('syncNow', () => runSync(repo, settings, getWindow))
+
+  handle('copyDiagnostics', () => {
+    clipboard.writeText(diagnostics(settings, repo))
+    log('diagnostics copied')
+    return true
+  })
+  handle('logWindowError', (message: string) => {
+    if (typeof message === 'string') log('window error', message.slice(0, 1000))
+  })
 }
 
 export async function runSync(
@@ -137,10 +157,12 @@ export async function runSync(
   getWindow: () => BrowserWindow | null
 ): Promise<SyncReport> {
   const report = await syncAll(settings, repo)
+  for (const [source, st] of Object.entries(report.results)) log('sync', source, st.ok ? 'ok' : 'FAILED', st.message)
   // After new workouts arrive, move the Hevy routines on to their next targets.
   if (settings.progression.enabled && report.results.hevy?.ok) {
     try {
       const changes = await applyProgression(settings, repo, app.getPath('userData'))
+      log('progression after sync', `${changes.length} change(s)`)
       if (changes.length) {
         report.results.hevy = {
           ...report.results.hevy,
@@ -149,6 +171,7 @@ export async function runSync(
         settings.recordSync('hevy', report.results.hevy)
       }
     } catch (err) {
+      log('progression after sync FAILED', err)
       report.results.hevy = { at: new Date().toISOString(), ok: false, message: err instanceof Error ? err.message : String(err) }
       settings.recordSync('hevy', report.results.hevy)
     }
@@ -179,6 +202,7 @@ export async function runHabitSync(
 ): Promise<string | null> {
   if (!settings.getSecret('todoist') || !settings.habitTasks) return null
   const error = await syncHabitTasks(settings, repo)
+  log('todoist habits', error ? `FAILED ${error}` : 'ok')
   settings.recordSync('todoist', {
     at: new Date().toISOString(),
     ok: !error,

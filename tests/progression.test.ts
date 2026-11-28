@@ -112,7 +112,10 @@ test('routine updates copy everything back, changing only targets', async () => 
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   process.env['ARETE_HEVY_BASE'] = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   try {
-    const { listRoutines, updateRoutine } = await import('../src/main/sync/hevyRoutines.ts')
+    const { listRoutines, updateRoutine, routineBody } = await import('../src/main/sync/hevyRoutines.ts')
+    // A timed exercise's sets carry only their duration.
+    const hang = routineBody({ id: 'h', title: 'T', notes: null, exercises: [{ title: 'Dead Hang', exercise_template_id: 'dh', superset_id: null, rest_seconds: null, notes: null, sets: [{ type: 'normal', weight_kg: null, reps: null, duration_seconds: 30, distance_meters: null, custom_metric: null, rep_range: null }] }] })
+    assert.deepEqual(hang, { routine: { title: 'T', exercises: [{ exercise_template_id: 'dh', sets: [{ type: 'normal', duration_seconds: 30 }] }] } })
     const { routines } = await listRoutines('k')
     assert.deepEqual(routines[0].exercises.map((e) => e.title), ['Bench Press (Dumbbell)', 'Row'])
     assert.equal(routines[0].exercises[0].sets[0].type, 'warmup')
@@ -123,12 +126,13 @@ test('routine updates copy everything back, changing only targets', async () => 
     assert.equal(r.title, 'Upper 1')
     assert.equal(r.notes, 'Week A')
     assert.equal(r.folder_id, undefined)
-    assert.deepEqual(r.exercises.map((e: any) => [e.exercise_template_id, e.rest_seconds, e.superset_id, e.notes]), [['bench', 120, null, 'Pause'], ['row', 90, 2, '']])
-    assert.deepEqual(r.exercises[0].sets[0], { type: 'warmup', weight_kg: lb(60), reps: 10, distance_meters: null, duration_seconds: null, custom_metric: null, rep_range: null })
+    assert.deepEqual(r.exercises.map((e: any) => [e.exercise_template_id, e.rest_seconds, e.superset_id, e.notes]), [['bench', 120, undefined, 'Pause'], ['row', 90, 2, undefined]])
+    // Empty fields are left out, so nothing mismatches the exercise type.
+    assert.deepEqual(r.exercises[0].sets[0], { type: 'warmup', weight_kg: lb(60), reps: 10 })
     assert.ok(Math.abs(r.exercises[0].sets[1].weight_kg / LB - 125) < 0.01)
     assert.equal(r.exercises[0].sets[1].reps, 6)
     // The row is copied back exactly, with no index or rpe.
-    assert.deepEqual(r.exercises[1].sets[0], { type: 'normal', weight_kg: 30, reps: 10, distance_meters: null, duration_seconds: null, custom_metric: null, rep_range: { start: 8, end: 12 } })
+    assert.deepEqual(r.exercises[1].sets[0], { type: 'normal', weight_kg: 30, reps: 10, rep_range: { start: 8, end: 12 } })
   } finally {
     server.close()
   }

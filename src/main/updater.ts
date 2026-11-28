@@ -1,5 +1,6 @@
 // Checks GitHub releases for new versions, downloads them in the background
 // and reports progress to the window, which offers a restart to install.
+import { log } from './log.ts'
 import { app, Notification, type BrowserWindow } from 'electron'
 import electronUpdater from 'electron-updater'
 import type { UpdateStatus } from '../shared/types.ts'
@@ -96,13 +97,17 @@ export function startUpdater(windowGetter: () => BrowserWindow | null): void {
     if (status.state === 'downloading') set({ ...status, percent: Math.round(p.percent) })
   })
   autoUpdater.on('update-downloaded', (info) => {
+    log('update downloaded', info.version)
     set({ state: 'ready', version: info.version })
     if (announce) {
       announce = false
       notify(`Version ${info.version} is ready. Click here to restart and install it.`, installUpdate)
     }
   })
-  autoUpdater.on('error', (err) => set({ state: 'error', message: err.message }))
+  autoUpdater.on('error', (err) => {
+    log('update error', err.message)
+    set({ state: 'error', message: err.message })
+  })
 
   void checkForUpdates()
   setInterval(() => void checkForUpdates(), CHECK_EVERY_MS)

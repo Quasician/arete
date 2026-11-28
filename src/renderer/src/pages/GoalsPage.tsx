@@ -386,7 +386,11 @@ function ProgressionCard({ settings }: { settings: PublicSettings }) {
         )}
       </div>
       {!settings.secrets.hevy && <p className="subtle small">Needs your Hevy API key in Settings.</p>}
-      {error && <p className="error small">{error}</p>}
+      {error && (
+        <p className="error small">
+          {error} If it keeps happening, use Copy diagnostics in Settings → App and paste it into your chat with Claude.
+        </p>
+      )}
       {applied != null && <p className="ready-line">{applied ? `Updated ${applied} target${applied === 1 ? '' : 's'} in Hevy.` : 'Nothing to change.'}</p>}
       {preview && (
         preview.changes.length === 0 ? (

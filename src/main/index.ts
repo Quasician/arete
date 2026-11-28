@@ -8,6 +8,7 @@ import { loadWindowState, trackWindowState } from './windowState.ts'
 import { checkForUpdatesAndAnnounce, startUpdater } from './updater.ts'
 import { applyOpenAtLogin } from './startup.ts'
 import { guessLocation, phaseAt, type Phase } from '../shared/sun.ts'
+import { initLog, log } from './log.ts'
 
 const SYNC_EVERY_MS = 60 * 60 * 1000
 
@@ -31,8 +32,14 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   })
-  app.whenReady().then(start)
+  app.whenReady().then(start).catch((err) => {
+    log('startup FAILED', err)
+    throw err
+  })
 }
+
+process.on('uncaughtException', (err) => log('uncaught exception', err))
+process.on('unhandledRejection', (reason) => log('unhandled rejection', reason))
 
 /** Window background while the page loads, matching the theme it will open in. */
 const PHASE_BACKGROUND: Record<Phase, string> = {
@@ -102,6 +109,9 @@ function createWindow(settings: Settings): BrowserWindow {
   } else {
     void win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+  win.webContents.on('render-process-gone', (_e, details) => log('window process gone', details.reason, details.exitCode))
+  win.webContents.on('did-fail-load', (_e, code, desc) => log('window failed to load', code, desc))
+  win.webContents.on('unresponsive', () => log('window unresponsive'))
   win.on('closed', () => {
     mainWindow = null
   })
@@ -113,8 +123,15 @@ async function start(): Promise<void> {
   Menu.setApplicationMenu(null)
 
   const dataDir = app.getPath('userData')
+  initLog(dataDir)
+  log('start', `v${app.getVersion()}`, app.isPackaged ? 'installed' : 'dev', `${process.platform} ${process.arch}`, `electron ${process.versions.electron}`)
   const wasmFile = path.join(app.getAppPath(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
-  store = await Store.open(path.join(dataDir, 'arete.sqlite'), wasmFile)
+  try {
+    store = await Store.open(path.join(dataDir, 'arete.sqlite'), wasmFile)
+  } catch (err) {
+    log('database open FAILED', err)
+    throw err
+  }
   const repo = new Repo(store)
   const settings = new Settings(path.join(dataDir, 'settings.json'))
 
@@ -156,6 +173,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  log('quit')
   try {
     store?.close()
   } catch {
