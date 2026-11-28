@@ -51,3 +51,11 @@ export async function applyProgression(settings: Settings, repo: Repo, userData:
   settings.recordProgression(p.changes)
   return p.changes
 }
+
+/** Every exercise in your Hevy routines, by name, including ones not logged yet. */
+export async function routineExerciseNames(settings: Settings): Promise<string[]> {
+  const key = settings.getSecret('hevy')
+  if (!key) return []
+  const { routines } = await listRoutines(key)
+  return [...new Set(routines.flatMap((r) => r.exercises.map((e) => e.title)))].sort()
+}

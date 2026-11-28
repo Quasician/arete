@@ -318,6 +318,8 @@ export interface AreteApi {
     plan: { days: number[]; time: string | null; startDate: string; fullMinutes: number }
   ): Promise<PublicSettings>
 
+  /** Names of every exercise in your Hevy routines, logged or not. */
+  routineExercises(): Promise<string[]>
   /** Next targets for every routine exercise, worked out from Hevy, without changing anything. */
   previewProgression(): Promise<{ changes: Change[]; routines: number }>
   /** Writes the next targets into the Hevy routines now. */

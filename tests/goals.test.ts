@@ -102,3 +102,12 @@ test('Hevy timed sets are kept for holds', () => {
   assert.equal(liftHistories([{ ...session('2026-12-01', []), detail: row.detail }])[0].points[0].bestSeconds, 48)
   void addDays
 })
+
+test('exercises only in your routines can be picked before they are logged', async () => {
+  const { exerciseForLabel } = await import('../src/shared/goals.ts')
+  const goals = suggestedGoals([], START, DEADLINE, () => `x${id++}`, ['Dead Hang', 'Deep Squat Hold', 'Pull Up'])
+  assert.deepEqual(goals.map((g) => g.exercise), [null, null, null, 'Pull Up', 'Dead Hang', 'Deep Squat Hold'])
+  const hang: LiftGoal = { ...goals[4], exercise: null }
+  assert.equal(exerciseForLabel(hang, [], ['Dead Hang']), 'Dead Hang')
+  assert.equal(exerciseForLabel({ ...hang, label: 'Something else' }, [], ['Dead Hang']), null)
+})

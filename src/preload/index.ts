@@ -35,6 +35,7 @@ const api: AreteApi = {
   logHabit: call('logHabit'),
   startHabit: call('startHabit'),
   previewProgression: call('previewProgression'),
+  routineExercises: call('routineExercises'),
   applyProgression: call('applyProgression'),
   syncNow: call('syncNow'),
   onSynced(callback) {

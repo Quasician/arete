@@ -1,10 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { addDays, daysBetween, toLocalDate } from '@shared/logic'
 import { liftHistories, type LiftHistory } from '@shared/progress'
 import {
   BODY_REGIONS,
   REGION_LABELS,
+  exerciseForLabel,
   goalProgress,
   metricValue,
   regionProgress,
@@ -52,6 +53,28 @@ export function GoalsPage() {
   const settings = useSettings().data
   const activities = useQuery({ queryKey: keys.activities(ALL, today), queryFn: () => api.listActivities(ALL, today) })
   const histories = useMemo(() => liftHistories(activities.data ?? []), [activities.data])
+  const routineNames =
+    useQuery({
+      queryKey: ['routine-exercises', !!settings?.secrets.hevy],
+      queryFn: () => api.routineExercises(),
+      enabled: !!settings?.secrets.hevy,
+      staleTime: 5 * 60_000
+    }).data ?? []
+  const update = useUpdateSettings()
+  // Goals still waiting for an exercise pick up the one their name points to.
+  useEffect(() => {
+    if (!settings || update.isPending) return
+    let changed = false
+    const goals = settings.liftGoals.map((g) => {
+      if (g.exercise) return g
+      const found = exerciseForLabel(g, histories, routineNames)
+      if (!found) return g
+      changed = true
+      return { ...g, exercise: found }
+    })
+    if (changed) update.mutate({ liftGoals: goals })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.liftGoals, histories, routineNames.join('|')])
   const [hovered, setHovered] = useState<BodyRegion | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<LiftGoal | 'new' | null>(null)
@@ -99,7 +122,7 @@ export function GoalsPage() {
       {activities.error && <p className="error">{errorText(activities.error)}</p>}
 
       {progress.length === 0 ? (
-        <SetupCard settings={settings} histories={histories} today={today} />
+        <SetupCard settings={settings} histories={histories} routineNames={routineNames} today={today} />
       ) : (
         <div className="goals-layout">
           <section className="card body-card">
@@ -152,6 +175,7 @@ export function GoalsPage() {
           goal={editing === 'new' ? null : editing}
           settings={settings}
           histories={histories}
+          routineNames={routineNames}
           today={today}
           onClose={() => setEditing(null)}
         />
@@ -410,11 +434,21 @@ function ChangeTable({ changes }: { changes: Change[] }) {
 
 // ---------- setting up ----------
 
-function SetupCard({ settings, histories, today }: { settings: PublicSettings; histories: LiftHistory[]; today: string }) {
+function SetupCard({
+  settings,
+  histories,
+  routineNames,
+  today
+}: {
+  settings: PublicSettings
+  histories: LiftHistory[]
+  routineNames: string[]
+  today: string
+}) {
   const update = useUpdateSettings()
   const [start, setStart] = useState(today)
   const [deadline, setDeadline] = useState(addDays(today, 7 * 13))
-  const goals = useMemo(() => suggestedGoals(histories, start, deadline, newId), [histories, start, deadline])
+  const goals = useMemo(() => suggestedGoals(histories, start, deadline, newId, routineNames), [histories, start, deadline, routineNames])
   const preview = goals.map((g) => goalProgress(g, histories, today, settings.units))
   return (
     <section className="card">
@@ -472,12 +506,14 @@ function GoalEditor({
   goal,
   settings,
   histories,
+  routineNames,
   today,
   onClose
 }: {
   goal: LiftGoal | null
   settings: PublicSettings
   histories: LiftHistory[]
+  routineNames: string[]
   today: string
   onClose: () => void
 }) {
@@ -505,6 +541,8 @@ function GoalEditor({
   const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof LiftGoal>(k: K, v: LiftGoal[K]) => setDraft({ ...draft, [k]: v })
   const exercises = histories.filter((h) => h.points.some((p) => metricValue(p, draft.metric) != null) || h.name === draft.exercise)
+  const logged = new Set(histories.map((h) => h.name))
+  const notYet = routineNames.filter((n) => !logged.has(n))
   const unit = draft.metric === 'e1rm' ? units : draft.metric === 'reps' ? 'reps' : 'seconds'
 
   function save(e: FormEvent) {
@@ -550,6 +588,15 @@ function GoalEditor({
                 {h.name} ({h.sessions})
               </option>
             ))}
+            {notYet.length > 0 && (
+              <optgroup label="In your routines, not logged yet">
+                {notYet.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         {draft.metric === 'seconds' && (

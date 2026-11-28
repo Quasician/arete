@@ -187,19 +187,37 @@ const SUGGESTED: Suggestion[] = [
   { label: 'Deep squat hold', match: [/squat hold|deep squat|sit(ting)? squat/i], metric: 'seconds', regions: ['hips', 'calves'], rule: {}, target: 120 }
 ]
 
-/** Picks the Hevy exercise that best matches, preferring the one trained most. */
-export function guessExercise(match: RegExp[], metric: GoalMetric, histories: LiftHistory[]): string | null {
-  const fits = histories.filter(
-    (h) => match.every((re) => re.test(h.name)) && h.points.some((p) => metricValue(p, metric) != null)
+/**
+ * Picks the Hevy exercise that best matches, preferring the one trained most,
+ * then any logged exercise, then one that's only in your routines so far.
+ */
+export function guessExercise(match: RegExp[], metric: GoalMetric, histories: LiftHistory[], routineNames: string[] = []): string | null {
+  const fits = (name: string) => match.every((re) => re.test(name))
+  return (
+    histories.find((h) => fits(h.name) && h.points.some((p) => metricValue(p, metric) != null))?.name ??
+    histories.find((h) => fits(h.name))?.name ??
+    routineNames.find(fits) ??
+    null
   )
-  return fits[0]?.name ?? histories.find((h) => match.every((re) => re.test(h.name)))?.name ?? null
 }
 
-export function suggestedGoals(histories: LiftHistory[], startDate: string, deadline: string, newId: () => string): LiftGoal[] {
+/** For a goal with no exercise yet: the one its name points to, if there is one. */
+export function exerciseForLabel(goal: LiftGoal, histories: LiftHistory[], routineNames: string[]): string | null {
+  const s = SUGGESTED.find((x) => x.label.toLowerCase() === goal.label.toLowerCase())
+  return s ? guessExercise(s.match, s.metric, histories, routineNames) : null
+}
+
+export function suggestedGoals(
+  histories: LiftHistory[],
+  startDate: string,
+  deadline: string,
+  newId: () => string,
+  routineNames: string[] = []
+): LiftGoal[] {
   return SUGGESTED.map((s) => ({
     id: newId(),
     label: s.label,
-    exercise: guessExercise(s.match, s.metric, histories),
+    exercise: guessExercise(s.match, s.metric, histories, routineNames),
     metric: s.metric,
     regions: s.regions,
     startDate,

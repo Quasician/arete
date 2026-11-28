@@ -10,7 +10,7 @@ import { applyOpenAtLogin } from './startup.ts'
 import { estimateMeal } from './estimate.ts'
 import { inRecovery, startQueuedHabit, syncHabitTasks } from './habitSync.ts'
 import { announceWins } from './announce.ts'
-import { applyProgression, previewProgression } from './progress.ts'
+import { applyProgression, previewProgression, routineExerciseNames } from './progress.ts'
 import { toLocalDate } from '../shared/logic.ts'
 import { addDays, buildWeek } from '../shared/logic.ts'
 import type {
@@ -124,6 +124,7 @@ export function registerIpc(repo: Repo, settings: Settings, getWindow: () => Bro
     return settings.public()
   })
 
+  handle('routineExercises', () => routineExerciseNames(settings))
   handle('previewProgression', () => previewProgression(settings, repo))
   handle('applyProgression', () => applyProgression(settings, repo, app.getPath('userData')))
 
