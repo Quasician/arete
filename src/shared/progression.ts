@@ -81,13 +81,19 @@ function roundTo(kg: number, step: number): number {
 
 const isWork = (s: RoutineSet) => s.type !== 'warmup'
 
+/** Warm-ups, stretching and the like are routines of drills, not lifts to progress. */
+export const NOT_PROGRESSED = /warm[\s-]?up|stretch|cool[\s-]?down|mobility|foam roll/i
+
 function describe(sets: RoutineSet[], show: (kg: number) => string): string {
   const work = sets.filter(isWork)
   if (!work.length) return '–'
   const s = work[0]
   const reps = s.rep_range ? `${s.reps ?? s.rep_range.start} (${s.rep_range.start}–${s.rep_range.end})` : s.reps != null ? String(s.reps) : null
   if (s.duration_seconds) return `${work.length} × ${s.duration_seconds} s`
-  if (s.weight_kg) return `${work.length} × ${reps ?? '?'} @ ${show(s.weight_kg)}`
+  if (s.weight_kg) {
+    const weights = [...new Set(work.map((w) => show(w.weight_kg ?? 0)))]
+    return `${work.length} × ${reps ?? '?'} @ ${weights.join(' / ')}`
+  }
   return `${work.length} × ${reps ?? '?'}`
 }
 
@@ -101,7 +107,7 @@ export function progressExercise(
   range: RepRange,
   stepKg: number
 ): { sets: RoutineSet[]; why: string } | null {
-  if (!last) return null
+  if (!last || NOT_PROGRESSED.test(ex.title)) return null
   const work = ex.sets.filter(isWork)
   if (!work.length) return null
   const [lo, hi] = range
@@ -114,12 +120,12 @@ export function progressExercise(
   if (planned > 0 || lifted > 0) {
     // Only move on once the planned weight has actually been lifted.
     if (planned > 0 && lifted < planned - 0.05) return null
-    const atWeight = done.filter((s) => (s.kg ?? 0) >= lifted - 0.05)
-    const reps = atWeight.map((s) => s.reps ?? 0)
+    // Every working set counts, so ramped sets (lighter first) move together.
+    const reps = done.filter((s) => (s.kg ?? 0) > 0).map((s) => s.reps ?? 0)
     const fewest = Math.min(...reps)
     let weight = lifted
     let target: number
-    if (fewest >= hi && atWeight.length >= work.length) {
+    if (fewest >= hi && reps.length >= work.length) {
       weight = roundTo(lifted + stepKg, stepKg)
       target = lo
       why = `Every set reached ${hi}: one step heavier, back to ${lo} reps`
@@ -131,8 +137,20 @@ export function progressExercise(
       target = Math.min(hi, Math.max(lo, fewest + 1))
       why = `Same weight, aim for ${target} on every set`
     }
-    next = (s) => (isWork(s) ? { ...s, weight_kg: weight, reps: target, rep_range: { start: lo, end: hi } } : s)
+    // Ramped sets (e.g. 100 then 120) keep their spacing: every working set moves by the same amount.
+    const shift = planned > 0 ? weight - planned : 0
+    next = (s) =>
+      isWork(s)
+        ? {
+            ...s,
+            weight_kg: planned > 0 && s.weight_kg ? Math.round((s.weight_kg + shift) * 1000) / 1000 : weight,
+            reps: target,
+            rep_range: { start: lo, end: hi }
+          }
+        : s
   } else if (done.some((s) => s.sec) || work.some((s) => s.duration_seconds)) {
+    // Only straight holds (every set the same length) move on; mixed lengths are drills.
+    if (new Set(work.map((s) => s.duration_seconds ?? 0)).size > 1) return null
     const best = Math.max(0, ...done.map((s) => s.sec ?? 0))
     if (!best) return null
     const target = Math.ceil((best + 5) / 5) * 5

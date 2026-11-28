@@ -133,3 +133,31 @@ test('routine updates copy everything back, changing only targets', async () => 
     server.close()
   }
 })
+
+test('warm-ups and stretching are never progressed; mixed-length holds are drills', () => {
+  const warm: RoutineExercise = { ...bench, title: 'Warm Up', exercise_template_id: 'w', sets: [{ type: 'normal', duration_seconds: 60 }, { type: 'normal', duration_seconds: 45 }] }
+  assert.equal(progressExercise(warm, { date: 'x', sets: [{ kg: null, reps: null, sec: 237 }] }, [8, 12], DEFAULT_STEP_KG), null)
+  const stretch: RoutineExercise = { ...warm, title: 'Stretching', sets: [{ type: 'normal', duration_seconds: 60 }, { type: 'normal', duration_seconds: 60 }] }
+  assert.equal(progressExercise(stretch, { date: 'x', sets: [{ kg: null, reps: null, sec: 60 }] }, [8, 12], DEFAULT_STEP_KG), null)
+  const plank: RoutineExercise = { ...warm, title: 'Plank', sets: [{ type: 'normal', duration_seconds: 45 }, { type: 'normal', duration_seconds: 49 }] }
+  assert.equal(progressExercise(plank, { date: 'x', sets: [{ kg: null, reps: null, sec: 50 }] }, [8, 12], DEFAULT_STEP_KG), null)
+})
+
+test('ramped sets keep their spacing', () => {
+  const ramp: RoutineExercise = {
+    ...bench,
+    sets: [
+      { type: 'warmup', weight_kg: lb(60), reps: 8 },
+      { type: 'normal', weight_kg: lb(100), reps: 8 },
+      { type: 'normal', weight_kg: lb(120), reps: 8 }
+    ]
+  }
+  const done: Performed = { date: 'x', sets: [{ kg: lb(100), reps: 10, sec: null }, { kg: lb(120), reps: 10, sec: null }] }
+  const up = progressExercise(ramp, done, [6, 10], DEFAULT_STEP_KG)!
+  assert.deepEqual(up.sets.map((s) => Math.round(s.weight_kg! / LB)), [60, 105, 125])
+  const hold = progressExercise(ramp, { date: 'x', sets: [{ kg: lb(100), reps: 9, sec: null }, { kg: lb(120), reps: 8, sec: null }] }, [6, 10], DEFAULT_STEP_KG)!
+  assert.deepEqual(hold.sets.map((s) => Math.round(s.weight_kg! / LB)), [60, 100, 120])
+  assert.deepEqual(hold.sets.slice(1).map((s) => s.reps), [9, 9])
+  const { changes } = planRoutines([{ id: 'u', title: 'Upper A', notes: null, exercises: [ramp] }], new Map([['bench', done]]), () => [6, 10], DEFAULT_STEP_KG, (kg) => `${Math.round(kg / LB)} lb`)
+  assert.equal(changes[0].to, '2 × 6 (6–10) @ 105 lb / 125 lb')
+})
